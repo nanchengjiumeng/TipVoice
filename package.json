@@ -1,0 +1,30 @@
+{
+  "name": "tip-voice",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "pack": "vp build && rm -f tip-voice.zip && bash -c 'cd dist && zip -r ../tip-voice.zip .'",
+    "preview": "vp preview",
+    "prepare": "vp config"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.4.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.40",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "fake-indexeddb": "^6.2.5",
+    "typescript": "~6.0.2",
+    "vite": "catalog:",
+    "vite-plugin-web-extension": "^4.5.1",
+    "vite-plus": "catalog:"
+  },
+  "packageManager": "pnpm@10.33.2"
+}

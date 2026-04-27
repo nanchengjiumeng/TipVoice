@@ -1,0 +1,80 @@
+:host {
+  position: fixed;
+  z-index: 2147483647;
+  pointer-events: none;
+}
+
+.tts-btn {
+  pointer-events: auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #4a90d9;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition:
+    background 0.2s,
+    transform 0.15s;
+  padding: 0;
+}
+
+.tts-btn:hover {
+  background: #357abd;
+  transform: scale(1.1);
+}
+
+.tts-btn:active {
+  transform: scale(0.95);
+}
+
+.tts-btn[data-state="loading"] {
+  background: #6ba3d6;
+  cursor: wait;
+}
+
+.tts-btn[data-state="playing"] {
+  background: #e05050;
+}
+
+.tts-btn[data-state="playing"]:hover {
+  background: #c43c3c;
+}
+
+.tts-btn[data-state="error"] {
+  background: #d94a4a;
+  animation: shake 0.4s ease;
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tts-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.tts-btn[data-state="loading"] svg.icon-loading {
+  animation: spin 1s linear infinite;
+}
