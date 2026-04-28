@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Tip Voice",
+  "name": "Tip Voice(Beta)",
   "version": "0.0.1",
-  "description": "选中文本，即可通过火山引擎语音合成（TTS）实时朗读发声",
+  "description": "选中文本，即可通过火山引擎语音合成（TTS）实时朗读发声，此扩展程序目前处于 Beta 版测试阶段，欢迎试用并提供反馈！",
   "permissions": ["activeTab", "storage", "offscreen"],
   "host_permissions": ["https://openspeech.bytedance.com/*"],
   "action": {

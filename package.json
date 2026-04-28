@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vp dev",
     "build": "vp build",
-    "pack": "vp build && rm -f tip-voice.zip && bash -c 'cd dist && zip -r ../tip-voice.zip .'",
+    "pack": "web-ext build --source-dir ./dist",
     "preview": "vp preview",
     "prepare": "vp config"
   },
