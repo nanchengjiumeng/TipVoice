@@ -209,9 +209,29 @@ body {
 }
 
 .col-voice {
-  width: 140px;
+  width: 180px;
   font-size: 13px;
   color: #555;
+}
+
+.provider-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.provider-badge[data-provider="volcengine"] {
+  background: #e6f4ea;
+  color: #1a7f37;
+}
+
+.provider-badge[data-provider="minimax"] {
+  background: #e8f0fe;
+  color: #1a56a0;
 }
 
 .col-size {

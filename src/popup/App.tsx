@@ -1,6 +1,7 @@
 import { useSettings } from "./hooks/useSettings.ts";
 import { CredentialsSection } from "./components/CredentialsSection.tsx";
 import { VoiceSettings } from "./components/VoiceSettings.tsx";
+import { PROVIDER_LABELS } from "../shared/constants.ts";
 
 export function App() {
   const { settings, loading, saved, updateSetting } = useSettings();
@@ -9,7 +10,8 @@ export function App() {
     return <div className="popup loading">Loading...</div>;
   }
 
-  const missingCredentials = !settings.apiKey;
+  const hasApiKey =
+    settings.provider === "minimax" ? !!settings.minimax.apiKey : !!settings.volcengine.apiKey;
 
   return (
     <div className="popup">
@@ -22,7 +24,11 @@ export function App() {
       <CredentialsSection settings={settings} onUpdate={updateSetting} />
       <VoiceSettings settings={settings} onUpdate={updateSetting} />
 
-      {missingCredentials && <p className="warning">Please configure API Key to enable TTS.</p>}
+      {!hasApiKey && (
+        <p className="warning">
+          请配置 {PROVIDER_LABELS[settings.provider]} 的 API Key 以启用语音合成。
+        </p>
+      )}
 
       <button
         className="storage-link-btn"

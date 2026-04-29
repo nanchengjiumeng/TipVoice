@@ -13,8 +13,7 @@ type OffscreenMessage =
   | AudioStopMessage
   | AudioPlayCachedMessage;
 
-const MIME_TYPE = "audio/mpeg";
-
+let currentMimeType = "audio/mpeg";
 let mediaSource: MediaSource | null = null;
 let sourceBuffer: SourceBuffer | null = null;
 let audio: HTMLAudioElement | null = null;
@@ -70,19 +69,16 @@ function base64ToBytes(base64: string): Uint8Array {
 function processQueue() {
   if (!sourceBuffer || sourceBuffer.updating) return;
 
-  // Append next pending buffer
   if (pendingBuffers.length > 0) {
     const chunk = pendingBuffers.shift()!;
     try {
       sourceBuffer.appendBuffer(chunk as BufferSource);
     } catch {
-      // SourceBuffer failed, fall back to accumulation playback
       usingMediaSource = false;
     }
-    return; // updateend will call processQueue again
+    return;
   }
 
-  // Start playback once we have buffered data
   if (!playbackStarted && audio && sourceBuffer.buffered.length > 0) {
     playbackStarted = true;
     audio
@@ -91,7 +87,6 @@ function processQueue() {
       .catch(() => onAudioError());
   }
 
-  // Finalize stream if all data is appended
   if (streamEnded && mediaSource?.readyState === "open") {
     try {
       mediaSource.endOfStream();
@@ -101,10 +96,11 @@ function processQueue() {
   }
 }
 
-function initStream() {
+function initStream(mimeType: string) {
   cleanup();
+  currentMimeType = mimeType;
 
-  usingMediaSource = typeof MediaSource !== "undefined" && MediaSource.isTypeSupported(MIME_TYPE);
+  usingMediaSource = typeof MediaSource !== "undefined" && MediaSource.isTypeSupported(mimeType);
 
   if (usingMediaSource) {
     mediaSource = new MediaSource();
@@ -117,7 +113,7 @@ function initStream() {
 
     mediaSource.addEventListener("sourceopen", () => {
       try {
-        sourceBuffer = mediaSource!.addSourceBuffer(MIME_TYPE);
+        sourceBuffer = mediaSource!.addSourceBuffer(mimeType);
         sourceBuffer.addEventListener("updateend", processQueue);
         processQueue();
       } catch {
@@ -130,7 +126,6 @@ function initStream() {
 function appendChunk(base64: string) {
   const bytes = base64ToBytes(base64);
 
-  // Always accumulate for fallback
   accumulatedData.push(bytes);
 
   if (usingMediaSource) {
@@ -145,7 +140,6 @@ function endStream() {
   if (usingMediaSource) {
     processQueue();
   } else {
-    // Fallback: play all accumulated data at once
     playAccumulated();
   }
 }
@@ -174,7 +168,7 @@ function playAccumulated() {
   mediaSource = null;
   sourceBuffer = null;
 
-  const blob = new Blob([merged], { type: MIME_TYPE });
+  const blob = new Blob([merged], { type: currentMimeType });
   objectUrl = URL.createObjectURL(blob);
   audio = new Audio(objectUrl);
 
@@ -187,8 +181,9 @@ function playAccumulated() {
     .catch(() => onAudioError());
 }
 
-function playCachedAudio(audioBase64: string) {
+function playCachedAudio(audioBase64: string, mimeType: string) {
   cleanup();
+  currentMimeType = mimeType || "audio/mpeg";
 
   const binary = atob(audioBase64);
   const bytes = new Uint8Array(binary.length);
@@ -196,7 +191,7 @@ function playCachedAudio(audioBase64: string) {
     bytes[i] = binary.charCodeAt(i);
   }
 
-  const blob = new Blob([bytes], { type: MIME_TYPE });
+  const blob = new Blob([bytes], { type: currentMimeType });
   objectUrl = URL.createObjectURL(blob);
   audio = new Audio(objectUrl);
 
@@ -211,7 +206,7 @@ function playCachedAudio(audioBase64: string) {
 
 chrome.runtime.onMessage.addListener((message: OffscreenMessage) => {
   if (message.type === "AUDIO_STREAM_START") {
-    initStream();
+    initStream(message.mimeType || "audio/mpeg");
     return;
   }
 
@@ -231,7 +226,7 @@ chrome.runtime.onMessage.addListener((message: OffscreenMessage) => {
   }
 
   if (message.type === "AUDIO_PLAY_CACHED") {
-    playCachedAudio(message.audioBase64);
+    playCachedAudio(message.audioBase64, message.mimeType || "audio/mpeg");
     return;
   }
 });

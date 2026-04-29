@@ -1,5 +1,9 @@
 import type { AudioCacheEntry } from "../../shared/types.ts";
-import { VOICE_PRESETS } from "../../shared/constants.ts";
+import {
+  VOLCENGINE_VOICE_PRESETS,
+  MINIMAX_VOICE_PRESETS,
+  PROVIDER_LABELS,
+} from "../../shared/constants.ts";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -16,9 +20,11 @@ function formatDate(ts: number): string {
   });
 }
 
-function voiceLabel(value: string): string {
-  const preset = VOICE_PRESETS.find((p) => p.value === value);
-  return preset ? preset.label : value;
+function voiceLabel(entry: AudioCacheEntry): string {
+  const provider = entry.provider || "volcengine";
+  const presets = provider === "minimax" ? MINIMAX_VOICE_PRESETS : VOLCENGINE_VOICE_PRESETS;
+  const preset = presets.find((p) => p.value === entry.voiceType);
+  return preset ? preset.label : entry.voiceType;
 }
 
 interface CacheEntryRowProps {
@@ -42,6 +48,7 @@ export function CacheEntryRow({
   onStop,
   onDetail,
 }: CacheEntryRowProps) {
+  const provider = entry.provider || "volcengine";
   return (
     <tr className={checked ? "row-selected" : ""}>
       <td className="col-check">
@@ -52,7 +59,12 @@ export function CacheEntryRow({
           {entry.text.length > 60 ? entry.text.slice(0, 60) + "..." : entry.text}
         </button>
       </td>
-      <td className="col-voice">{voiceLabel(entry.voiceType)}</td>
+      <td className="col-voice">
+        <span className="provider-badge" data-provider={provider}>
+          {PROVIDER_LABELS[provider] || provider}
+        </span>
+        {voiceLabel(entry)}
+      </td>
       <td className="col-size">{formatSize(entry.audioSize)}</td>
       <td className="col-date">{formatDate(entry.createdAt)}</td>
       <td className="col-actions">

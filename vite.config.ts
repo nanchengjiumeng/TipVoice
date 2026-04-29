@@ -4,6 +4,9 @@ import webExtension from "vite-plugin-web-extension";
 
 export default defineConfig({
   plugins: [react(), webExtension({ additionalInputs: ["offscreen.html", "storage.html"] })],
+  build: {
+    emptyOutDir: true,
+  },
   test: {
     setupFiles: ["tests/setup.ts"],
   },

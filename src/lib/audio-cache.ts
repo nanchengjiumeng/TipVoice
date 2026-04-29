@@ -5,16 +5,11 @@ import {
   AUDIO_CACHE_MAX_BYTES,
 } from "../shared/constants.ts";
 
-// --- IndexedDB ---
-// Two object stores in the same database:
-//   "blobs"    – audio Blob data, keyed by cacheKey
-//   "metadata" – AudioCacheEntry JSON objects, keyPath: "cacheKey"
-
 const META_STORE = "metadata";
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(AUDIO_BLOB_DB_NAME, 2);
+    const request = indexedDB.open(AUDIO_BLOB_DB_NAME, 3);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(AUDIO_BLOB_STORE_NAME)) {
@@ -23,6 +18,12 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(META_STORE)) {
         const store = db.createObjectStore(META_STORE, { keyPath: "cacheKey" });
         store.createIndex("by-created", "createdAt");
+      } else {
+        // Version 3: add provider column (entries without provider default to "volcengine")
+        const store = request.transaction!.objectStore(META_STORE);
+        if (!store.indexNames.contains("by-provider")) {
+          store.createIndex("by-provider", "provider", { unique: false });
+        }
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -30,15 +31,14 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-// --- Public API ---
-
 export async function computeCacheKey(
   text: string,
+  provider: string,
   voiceType: string,
   speechRate: number,
   loudnessRate: number,
 ): Promise<string> {
-  const input = JSON.stringify([text, voiceType, speechRate, loudnessRate]);
+  const input = JSON.stringify([text, provider, voiceType, speechRate, loudnessRate]);
   const data = new TextEncoder().encode(input);
   const hash = await crypto.subtle.digest("SHA-256", data);
   const bytes = new Uint8Array(hash);
@@ -62,6 +62,7 @@ export async function getCachedAudio(cacheKey: string): Promise<Blob | null> {
 export async function storeCachedAudio(params: {
   cacheKey: string;
   text: string;
+  provider: string;
   voiceType: string;
   speechRate: number;
   loudnessRate: number;
@@ -69,7 +70,6 @@ export async function storeCachedAudio(params: {
 }): Promise<void> {
   const db = await openDB();
 
-  // Check storage limit
   const currentSize = await new Promise<number>((resolve, reject) => {
     const tx = db.transaction(META_STORE, "readonly");
     const store = tx.objectStore(META_STORE);
@@ -89,10 +89,9 @@ export async function storeCachedAudio(params: {
 
   if (currentSize + params.audioBlob.size > AUDIO_CACHE_MAX_BYTES) {
     db.close();
-    return; // Over limit, skip storing
+    return;
   }
 
-  // Store metadata + blob in a single transaction
   return new Promise((resolve, reject) => {
     const tx = db.transaction([META_STORE, AUDIO_BLOB_STORE_NAME], "readwrite");
 
@@ -100,6 +99,7 @@ export async function storeCachedAudio(params: {
     const entry: AudioCacheEntry = {
       cacheKey: params.cacheKey,
       text: params.text,
+      provider: params.provider as AudioCacheEntry["provider"],
       voiceType: params.voiceType,
       speechRate: params.speechRate,
       loudnessRate: params.loudnessRate,
@@ -128,12 +128,16 @@ export async function getAllEntries(): Promise<AudioCacheEntry[]> {
     const tx = db.transaction(META_STORE, "readonly");
     const store = tx.objectStore(META_STORE);
     const index = store.index("by-created");
-    const req = index.openCursor(null, "prev"); // descending
+    const req = index.openCursor(null, "prev");
     const entries: AudioCacheEntry[] = [];
     req.onsuccess = () => {
       const cursor = req.result;
       if (cursor) {
-        entries.push(cursor.value as AudioCacheEntry);
+        const entry = cursor.value as AudioCacheEntry;
+        if (!entry.provider) {
+          entry.provider = "volcengine";
+        }
+        entries.push(entry);
         cursor.continue();
       } else {
         resolve(entries);

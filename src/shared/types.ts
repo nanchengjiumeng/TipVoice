@@ -1,10 +1,46 @@
+export type TTSProviderId = "volcengine" | "minimax";
+
 export interface TTSSettings {
+  provider: TTSProviderId;
   apiKey: string;
   resourceId: string;
   voiceType: string;
-  speechRate: number; // [-50, 100], 0 = normal
-  loudnessRate: number; // [-50, 100], 0 = normal
+  speechRate: number;
+  loudnessRate: number;
+  volcengine: VolcengineSettings;
+  minimax: MinimaxSettings;
 }
+
+export interface VolcengineSettings {
+  apiKey: string;
+  resourceId: string;
+  voiceType: string;
+  speechRate: number;
+  loudnessRate: number;
+}
+
+export interface MinimaxSettings {
+  apiKey: string;
+  model: MinimaxModel;
+  voiceId: string;
+  speed: number;
+  vol: number;
+  pitch: number;
+  sampleRate: number;
+  audioFormat: MinimaxAudioFormat;
+}
+
+export type MinimaxModel =
+  | "speech-2.8-hd"
+  | "speech-2.8-turbo"
+  | "speech-2.6-hd"
+  | "speech-2.6-turbo"
+  | "speech-02-hd"
+  | "speech-02-turbo"
+  | "speech-01-hd"
+  | "speech-01-turbo";
+
+export type MinimaxAudioFormat = "mp3" | "pcm" | "flac" | "wav";
 
 export type PlaybackState = "idle" | "loading" | "playing" | "error";
 
@@ -36,6 +72,7 @@ export interface TTSCancelMessage {
 
 export interface AudioStreamStartMessage {
   type: "AUDIO_STREAM_START";
+  mimeType?: string;
 }
 
 export interface AudioChunkMessage {
@@ -59,11 +96,25 @@ export interface AudioStateMessage {
 export interface AudioPlayCachedMessage {
   type: "AUDIO_PLAY_CACHED";
   audioBase64: string;
+  mimeType?: string;
+}
+
+export interface MinimaxSystemVoice {
+  voice_id: string;
+  voice_name: string;
+  description: string[];
+}
+
+export interface MinimaxVoiceListResult {
+  system_voice: MinimaxSystemVoice[];
+  voice_cloning: { voice_id: string; description: string[]; created_time: string }[];
+  voice_generation: { voice_id: string; description: string[]; created_time: string }[];
 }
 
 export interface AudioCacheEntry {
   cacheKey: string;
   text: string;
+  provider: TTSProviderId;
   voiceType: string;
   speechRate: number;
   loudnessRate: number;

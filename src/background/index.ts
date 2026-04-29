@@ -1,12 +1,12 @@
-import type { ExtensionMessage, TTSResponseMessage } from "../shared/types.ts";
+import type { ExtensionMessage, TTSResponseMessage, TTSSettings } from "../shared/types.ts";
 import { isTTSRequest, isTTSCancel } from "../shared/messages.ts";
 import { getSettings } from "../shared/storage.ts";
-import { synthesizeStream, TTSApiError, TTSNetworkError } from "../lib/tts-client.ts";
+import { getProvider } from "../lib/tts-client.ts";
+import { TTSApiError, TTSNetworkError } from "../lib/provider.ts";
 import { computeCacheKey, getCachedAudio, storeCachedAudio } from "../lib/audio-cache.ts";
 
 const activeRequests = new Map<number, AbortController>();
 
-// Track which tab is currently playing audio
 let playingTabId: number | null = null;
 
 function makeErrorResponse(error: string): TTSResponseMessage {
@@ -47,7 +47,6 @@ function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
-      // result is "data:audio/mpeg;base64,XXXX", extract base64 part
       const dataUrl = reader.result as string;
       const base64 = dataUrl.split(",")[1];
       resolve(base64);
@@ -57,44 +56,84 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+function getVoiceId(settings: TTSSettings): string {
+  if (settings.provider === "minimax") {
+    return settings.minimax.voiceId;
+  }
+  return settings.volcengine.voiceType;
+}
+
+function getSpeechRate(settings: TTSSettings): number {
+  if (settings.provider === "minimax") {
+    return settings.minimax.speed;
+  }
+  return settings.volcengine.speechRate;
+}
+
+function getLoudnessRate(settings: TTSSettings): number {
+  if (settings.provider === "minimax") {
+    return settings.minimax.vol;
+  }
+  return settings.volcengine.loudnessRate;
+}
+
+function getMimeType(settings: TTSSettings): string {
+  if (settings.provider === "minimax") {
+    const format = settings.minimax.audioFormat;
+    const map: Record<string, string> = {
+      mp3: "audio/mpeg",
+      pcm: "audio/pcm",
+      flac: "audio/flac",
+      wav: "audio/wav",
+    };
+    return map[format] ?? "audio/mpeg";
+  }
+  return "audio/mpeg";
+}
+
 async function handleTTSStreaming(text: string, tabId: number, signal: AbortSignal): Promise<void> {
   const settings = await getSettings();
 
-  // Validate credentials
-  if (!settings.apiKey) {
+  if (!getApiKey(settings)) {
     void chrome.tabs.sendMessage(tabId, { type: "AUDIO_STATE", state: "error" });
     return;
   }
 
-  // Check cache first
+  const mimeType = getMimeType(settings);
+
   try {
     const cacheKey = await computeCacheKey(
       text,
-      settings.voiceType,
-      settings.speechRate,
-      settings.loudnessRate,
+      settings.provider,
+      getVoiceId(settings),
+      getSpeechRate(settings),
+      getLoudnessRate(settings),
     );
 
     const cachedBlob = await getCachedAudio(cacheKey);
     if (cachedBlob) {
-      // Cache hit — play directly
       await ensureOffscreenDocument();
       const audioBase64 = await blobToBase64(cachedBlob);
-      void chrome.runtime.sendMessage({ type: "AUDIO_PLAY_CACHED", audioBase64 });
+      void chrome.runtime.sendMessage({
+        type: "AUDIO_PLAY_CACHED",
+        audioBase64,
+        mimeType: cachedBlob.type || "audio/mpeg",
+      });
       return;
     }
   } catch {
     // Cache lookup failed, proceed with API call
   }
 
-  // Cache miss — stream from API
   const chunks: Uint8Array[] = [];
 
   try {
     await ensureOffscreenDocument();
-    void chrome.runtime.sendMessage({ type: "AUDIO_STREAM_START" });
+    void chrome.runtime.sendMessage({ type: "AUDIO_STREAM_START", mimeType });
 
-    await synthesizeStream(
+    const provider = getProvider(settings);
+
+    await provider.synthesizeStream(
       settings,
       text,
       (audioData: Uint8Array) => {
@@ -107,7 +146,6 @@ async function handleTTSStreaming(text: string, tabId: number, signal: AbortSign
 
     void chrome.runtime.sendMessage({ type: "AUDIO_END" });
 
-    // Store in cache (fire-and-forget)
     if (chunks.length > 0) {
       const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
       const merged = new Uint8Array(totalLength);
@@ -119,17 +157,19 @@ async function handleTTSStreaming(text: string, tabId: number, signal: AbortSign
 
       const cacheKey = await computeCacheKey(
         text,
-        settings.voiceType,
-        settings.speechRate,
-        settings.loudnessRate,
+        settings.provider,
+        getVoiceId(settings),
+        getSpeechRate(settings),
+        getLoudnessRate(settings),
       );
       void storeCachedAudio({
         cacheKey,
         text,
-        voiceType: settings.voiceType,
-        speechRate: settings.speechRate,
-        loudnessRate: settings.loudnessRate,
-        audioBlob: new Blob([merged], { type: "audio/mpeg" }),
+        provider: settings.provider,
+        voiceType: getVoiceId(settings),
+        speechRate: getSpeechRate(settings),
+        loudnessRate: getLoudnessRate(settings),
+        audioBlob: new Blob([merged], { type: mimeType }),
       }).catch((err) => console.error("[Tip Voice] Failed to cache audio:", err));
     }
   } catch (err) {
@@ -151,14 +191,19 @@ async function handleTTSStreaming(text: string, tabId: number, signal: AbortSign
   }
 }
 
-// Listen for messages from content scripts, offscreen, and popup
+function getApiKey(settings: TTSSettings): string {
+  if (settings.provider === "minimax") {
+    return settings.minimax.apiKey;
+  }
+  return settings.volcengine.apiKey;
+}
+
 chrome.runtime.onMessage.addListener(
   (
     message: ExtensionMessage,
     sender: chrome.runtime.MessageSender,
     sendResponse: (response: TTSResponseMessage | undefined) => void,
   ) => {
-    // Forward audio state from offscreen to the content script tab
     if (message.type === "AUDIO_STATE" && playingTabId != null) {
       void chrome.tabs.sendMessage(playingTabId, message);
       if (message.state === "ended" || message.state === "error") {
@@ -182,7 +227,6 @@ chrome.runtime.onMessage.addListener(
     if (isTTSRequest(message)) {
       const tabId = sender.tab?.id;
 
-      // Abort any existing request for this tab
       if (tabId != null) {
         activeRequests.get(tabId)?.abort();
       }
@@ -192,10 +236,9 @@ chrome.runtime.onMessage.addListener(
         activeRequests.set(tabId, controller);
       }
 
-      // Validate and respond immediately, then start streaming
       getSettings()
         .then((settings) => {
-          if (!settings.apiKey) {
+          if (!getApiKey(settings)) {
             sendResponse(makeErrorResponse("Please configure API Key in the extension popup"));
             return;
           }

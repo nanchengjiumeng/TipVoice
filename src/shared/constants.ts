@@ -1,22 +1,41 @@
 import type { TTSSettings } from "./types.ts";
+import type { TTSProviderId } from "./types.ts";
 
 export const TTS_API_URL = "https://openspeech.bytedance.com/api/v3/tts/unidirectional";
+
+export const MINIMAX_HTTP_URL = "https://api.minimaxi.com/v1/t2a_v2";
+
+export const MINIMAX_GET_VOICE_URL = "https://api.minimaxi.com/v1/get_voice";
 
 export const STORAGE_KEY = "tts_settings";
 
 export const DEFAULT_SETTINGS: TTSSettings = {
+  provider: "volcengine",
   apiKey: "",
   resourceId: "seed-tts-2.0",
   voiceType: "zh_male_wennuanahu_uranus_bigtts",
   speechRate: 0,
   loudnessRate: 0,
+  volcengine: {
+    apiKey: "",
+    resourceId: "seed-tts-2.0",
+    voiceType: "zh_male_wennuanahu_uranus_bigtts",
+    speechRate: 0,
+    loudnessRate: 0,
+  },
+  minimax: {
+    apiKey: "",
+    model: "speech-2.8-turbo",
+    voiceId: "Chinese (Mandarin)_Lyrical_Voice",
+    speed: 1.0,
+    vol: 1.0,
+    pitch: 0,
+    sampleRate: 32000,
+    audioFormat: "mp3",
+  },
 };
 
-/**
- * 豆包语音合成模型2-0-音色列表
- * https://www.volcengine.com/docs/6561/1257544?lang=zh#%E8%B1%86%E5%8C%85%E8%AF%AD%E9%9F%B3%E5%90%88%E6%88%90%E6%A8%A1%E5%9E%8B2-0-%E9%9F%B3%E8%89%B2%E5%88%97%E8%A1%A8
- */
-export const VOICE_PRESETS = [
+export const VOLCENGINE_VOICE_PRESETS = [
   { label: "Vivi 2.0", value: "zh_female_vv_uranus_bigtts" },
   { label: "小何 2.0", value: "zh_female_xiaohe_uranus_bigtts" },
   { label: "云舟 2.0", value: "zh_male_m191_uranus_bigtts" },
@@ -40,7 +59,7 @@ export const VOICE_PRESETS = [
   { label: "黑猫侦探社咪仔 2.0", value: "zh_female_mizai_uranus_bigtts" },
   { label: "鸡汤女 2.0", value: "zh_female_jitangnv_uranus_bigtts" },
   { label: "魅力女友 2.0", value: "zh_female_meilinvyou_uranus_bigtts" },
-  { label: "流畅女声 2.0", value: "zh_female_liuchangnv_uranus_bigtts" },
+  { label: "流畅女声 2.0", value: "zh_female_liuchangnvsheng_uranus_bigtts" },
   { label: "儒雅逸辰 2.0", value: "zh_male_ruyayichen_uranus_bigtts" },
   { label: "Tim", value: "en_male_tim_uranus_bigtts" },
   { label: "Dacey", value: "en_female_dacey_uranus_bigtts" },
@@ -121,9 +140,51 @@ export const VOICE_PRESETS = [
   { label: "清新沐沐 2.0", value: "saturn_zh_male_qingxinmumu_cs_tob" },
 ] as const;
 
+export const MINIMAX_VOICE_PRESETS = [
+  { label: "Lyrical Voice (中文)", value: "Chinese (Mandarin)_Lyrical_Voice" },
+  { label: "HK Flight Attendant (粤语)", value: "Chinese (Mandarin)_HK_Flight_Attendant" },
+  { label: "Graceful Lady (英文)", value: "English_Graceful_Lady" },
+  { label: "Insightful Speaker (英文)", value: "English_Insightful_Speaker" },
+  { label: "Radiant Girl (英文)", value: "English_radiant_girl" },
+  { label: "Persuasive Man (英文)", value: "English_Persuasive_Man" },
+  { label: "Lucky Robot (英文)", value: "English_Lucky_Robot" },
+  { label: "Whisper Belle (日文)", value: "Japanese_Whisper_Belle" },
+  { label: "moss_audio 女声 1", value: "moss_audio_ce44fc67-7ce3-11f0-8de5-96e35d26fb85" },
+  { label: "moss_audio 女声 2", value: "moss_audio_aaa1346a-7ce7-11f0-8e61-2e6e3c7ee85d" },
+  { label: "moss_audio 英文男声 1", value: "moss_audio_6dc281eb-713c-11f0-a447-9613c873494c" },
+  { label: "moss_audio 英文女声 1", value: "moss_audio_570551b1-735c-11f0-b236-0adeeecad052" },
+  { label: "moss_audio 英文女声 2", value: "moss_audio_ad5baf92-735f-11f0-8263-fe5a2fe98ec8" },
+  { label: "moss_audio 日文 1", value: "moss_audio_24875c4a-7be4-11f0-9359-4e72c55db738" },
+  { label: "moss_audio 日文 2", value: "moss_audio_7f4ee608-78ea-11f0-bb73-1e2a4cfcd245" },
+  { label: "moss_audio 日文 3", value: "moss_audio_c1a6a3ac-7be6-11f0-8e8e-36b92fbb4f95" },
+] as const;
+
+export const MINIMAX_MODELS = [
+  { label: "Speech 2.8 HD", value: "speech-2.8-hd" as const },
+  { label: "Speech 2.8 Turbo", value: "speech-2.8-turbo" as const },
+  { label: "Speech 2.6 HD", value: "speech-2.6-hd" as const },
+  { label: "Speech 2.6 Turbo", value: "speech-2.6-turbo" as const },
+  { label: "Speech 02 HD", value: "speech-02-hd" as const },
+  { label: "Speech 02 Turbo", value: "speech-02-turbo" as const },
+  { label: "Speech 01 HD", value: "speech-01-hd" as const },
+  { label: "Speech 01 Turbo", value: "speech-01-turbo" as const },
+] as const;
+
+export const MINIMAX_AUDIO_FORMATS = [
+  { label: "MP3", value: "mp3" as const },
+  { label: "PCM", value: "pcm" as const },
+  { label: "FLAC", value: "flac" as const },
+] as const;
+
+export const MINIMAX_SAMPLE_RATES = [8000, 16000, 22050, 24000, 32000, 44100] as const;
+
+export const PROVIDER_LABELS: Record<TTSProviderId, string> = {
+  volcengine: "火山引擎",
+  minimax: "MiniMax",
+};
+
 export const AUDIO_MIME_TYPE = "audio/mpeg";
 
-// Audio cache constants
 export const AUDIO_BLOB_DB_NAME = "tts_audio_blobs";
 export const AUDIO_BLOB_STORE_NAME = "blobs";
 export const AUDIO_CACHE_MAX_BYTES = 1024 * 1024 * 1024; // 1GB

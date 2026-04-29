@@ -1,5 +1,9 @@
 import type { AudioCacheEntry } from "../../shared/types.ts";
-import { VOICE_PRESETS } from "../../shared/constants.ts";
+import {
+  VOLCENGINE_VOICE_PRESETS,
+  MINIMAX_VOICE_PRESETS,
+  PROVIDER_LABELS,
+} from "../../shared/constants.ts";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -7,9 +11,11 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function voiceLabel(value: string): string {
-  const preset = VOICE_PRESETS.find((p) => p.value === value);
-  return preset ? preset.label : value;
+function voiceLabel(entry: AudioCacheEntry): string {
+  const provider = entry.provider || "volcengine";
+  const presets = provider === "minimax" ? MINIMAX_VOICE_PRESETS : VOLCENGINE_VOICE_PRESETS;
+  const preset = presets.find((p) => p.value === entry.voiceType);
+  return preset ? preset.label : entry.voiceType;
 }
 
 interface DetailModalProps {
@@ -29,6 +35,7 @@ export function DetailModal({
   onStop,
   playing,
 }: DetailModalProps) {
+  const provider = entry.provider || "volcengine";
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -45,8 +52,11 @@ export function DetailModal({
             <span className="detail-label">文本内容</span>
             <div className="detail-text">{entry.text}</div>
 
+            <span className="detail-label">服务商</span>
+            <span className="detail-value">{PROVIDER_LABELS[provider] || provider}</span>
+
             <span className="detail-label">音色</span>
-            <span className="detail-value">{voiceLabel(entry.voiceType)}</span>
+            <span className="detail-value">{voiceLabel(entry)}</span>
 
             <span className="detail-label">音色 ID</span>
             <span className="detail-value">{entry.voiceType}</span>

@@ -1,17 +1,20 @@
 import { describe, expect, it, vi, beforeEach } from "vite-plus/test";
 import { resetChromeStorage } from "./setup.ts";
-import { synthesizeStream, TTSNetworkError } from "../src/lib/tts-client.ts";
+import { VolcengineProvider } from "../src/lib/volcengine-provider.ts";
+import { TTSNetworkError } from "../src/lib/provider.ts";
 import type { TTSSettings } from "../src/shared/types.ts";
 import { DEFAULT_SETTINGS } from "../src/shared/constants.ts";
 
 const mockSettings: TTSSettings = {
   ...DEFAULT_SETTINGS,
-  apiKey: "test-api-key",
+  volcengine: {
+    ...DEFAULT_SETTINGS.volcengine,
+    apiKey: "test-api-key",
+  },
 };
 
 const encoder = new TextEncoder();
 
-/** Build an NDJSON stream from an array of JSON line strings */
 function ndjsonStream(lines: string[]): ReadableStream<Uint8Array> {
   const text = lines.join("\n") + "\n";
   let sent = false;
@@ -36,7 +39,9 @@ function mockFetchWith(stream: ReadableStream<Uint8Array>, status = 200) {
   );
 }
 
-describe("tts-client V3 (JSON/NDJSON)", () => {
+describe("VolcengineProvider (JSON/NDJSON)", () => {
+  const provider = new VolcengineProvider();
+
   beforeEach(() => {
     resetChromeStorage();
     vi.restoreAllMocks();
@@ -51,7 +56,7 @@ describe("tts-client V3 (JSON/NDJSON)", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const chunks: Uint8Array[] = [];
-    await synthesizeStream(mockSettings, "hello", (chunk) => chunks.push(chunk));
+    await provider.synthesizeStream(mockSettings, "hello", (chunk) => chunks.push(chunk));
 
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, opts] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -65,16 +70,14 @@ describe("tts-client V3 (JSON/NDJSON)", () => {
       }),
     );
 
-    // Verify body is valid JSON with expected structure
     const body = JSON.parse(opts.body as string);
     expect(body.namespace).toBe("BidirectionalTTS");
     expect(body.req_params.text).toBe("hello");
-    expect(body.req_params.speaker).toBe(mockSettings.voiceType);
+    expect(body.req_params.speaker).toBe(mockSettings.volcengine.voiceType);
     expect(body.req_params.audio_params.format).toBe("mp3");
   });
 
   it("streams audio chunks from NDJSON data fields", async () => {
-    // base64 of [10, 20, 30] = "ChQe", [40, 50, 60] = "KDI8"
     const stream = ndjsonStream([
       `{"code":0,"message":"","data":"${btoa(String.fromCharCode(10, 20, 30))}"}`,
       `{"code":0,"message":"","data":"${btoa(String.fromCharCode(40, 50, 60))}"}`,
@@ -83,7 +86,7 @@ describe("tts-client V3 (JSON/NDJSON)", () => {
     vi.stubGlobal("fetch", mockFetchWith(stream));
 
     const chunks: Uint8Array[] = [];
-    await synthesizeStream(mockSettings, "hello world", (chunk) => chunks.push(chunk));
+    await provider.synthesizeStream(mockSettings, "hello world", (chunk) => chunks.push(chunk));
 
     expect(chunks).toHaveLength(2);
     expect(Array.from(chunks[0])).toEqual([10, 20, 30]);
@@ -99,7 +102,7 @@ describe("tts-client V3 (JSON/NDJSON)", () => {
     vi.stubGlobal("fetch", mockFetchWith(stream));
 
     const chunks: Uint8Array[] = [];
-    await synthesizeStream(mockSettings, "test", (chunk) => chunks.push(chunk));
+    await provider.synthesizeStream(mockSettings, "test", (chunk) => chunks.push(chunk));
 
     expect(chunks).toHaveLength(1);
     expect(Array.from(chunks[0])).toEqual([1, 2, 3]);
@@ -109,7 +112,7 @@ describe("tts-client V3 (JSON/NDJSON)", () => {
     const stream = ndjsonStream(['{"code":45000000,"message":"Invalid parameter","data":null}']);
     vi.stubGlobal("fetch", mockFetchWith(stream));
 
-    await expect(synthesizeStream(mockSettings, "test", () => {})).rejects.toThrow(
+    await expect(provider.synthesizeStream(mockSettings, "test", () => {})).rejects.toThrow(
       expect.objectContaining({
         name: "TTSApiError",
         message: "Invalid parameter",
@@ -124,13 +127,17 @@ describe("tts-client V3 (JSON/NDJSON)", () => {
       vi.fn().mockResolvedValue(new Response(null, { status: 500, statusText: "Server Error" })),
     );
 
-    await expect(synthesizeStream(mockSettings, "test", () => {})).rejects.toThrow(TTSNetworkError);
+    await expect(provider.synthesizeStream(mockSettings, "test", () => {})).rejects.toThrow(
+      TTSNetworkError,
+    );
   });
 
   it("throws TTSNetworkError on fetch rejection", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network down")));
 
-    await expect(synthesizeStream(mockSettings, "test", () => {})).rejects.toThrow(TTSNetworkError);
+    await expect(provider.synthesizeStream(mockSettings, "test", () => {})).rejects.toThrow(
+      TTSNetworkError,
+    );
   });
 
   it("supports abort signal cancellation", async () => {
@@ -141,17 +148,15 @@ describe("tts-client V3 (JSON/NDJSON)", () => {
     controller.abort();
 
     await expect(
-      synthesizeStream(mockSettings, "test", () => {}, controller.signal),
+      provider.synthesizeStream(mockSettings, "test", () => {}, controller.signal),
     ).rejects.toThrow();
   });
 
   it("handles NDJSON split across multiple stream chunks", async () => {
-    // Simulate data arriving in partial chunks
     const line1 = `{"code":0,"message":"","data":"${btoa(String.fromCharCode(1, 2, 3))}"}`;
     const line2 = '{"code":20000000,"message":"OK","data":null}';
     const fullText = line1 + "\n" + line2 + "\n";
 
-    // Split in the middle of a line
     const splitPoint = Math.floor(line1.length / 2);
     const part1 = fullText.slice(0, splitPoint);
     const part2 = fullText.slice(splitPoint);
@@ -172,7 +177,7 @@ describe("tts-client V3 (JSON/NDJSON)", () => {
     vi.stubGlobal("fetch", mockFetchWith(stream));
 
     const chunks: Uint8Array[] = [];
-    await synthesizeStream(mockSettings, "test", (chunk) => chunks.push(chunk));
+    await provider.synthesizeStream(mockSettings, "test", (chunk) => chunks.push(chunk));
 
     expect(chunks).toHaveLength(1);
     expect(Array.from(chunks[0])).toEqual([1, 2, 3]);
