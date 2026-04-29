@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { fetchMinimaxVoices } from "../../lib/minimax-provider.ts";
 import { MINIMAX_VOICE_PRESETS } from "../../shared/constants.ts";
 import type { MinimaxSystemVoice } from "../../shared/types.ts";
@@ -10,21 +10,23 @@ export interface VoiceOption {
 }
 
 function buildVoiceOptions(systemVoices: MinimaxSystemVoice[]): VoiceOption[] {
-  const options: VoiceOption[] = systemVoices.map((v) => ({
-    value: v.voice_id,
-    label: v.voice_name || v.voice_id,
-    description: v.description?.[0] ?? "",
-  }));
+  const seen = new Set<string>();
+  const options: VoiceOption[] = [];
 
-  const presetIds = new Set(MINIMAX_VOICE_PRESETS.map((p) => p.value));
-  for (const p of MINIMAX_VOICE_PRESETS) {
-    if (!systemVoices.some((v) => v.voice_id === p.value)) {
-      options.push({ value: p.value, label: p.label, description: "" });
+  for (const v of systemVoices) {
+    if (!seen.has(v.voice_id)) {
+      seen.add(v.voice_id);
+      options.push({
+        value: v.voice_id,
+        label: v.voice_name || v.voice_id,
+        description: v.description?.[0] ?? "",
+      });
     }
   }
 
   for (const p of MINIMAX_VOICE_PRESETS) {
-    if (presetIds.has(p.value) && !options.some((o) => o.value === p.value)) {
+    if (!seen.has(p.value)) {
+      seen.add(p.value);
       options.push({ value: p.value, label: p.label, description: "" });
     }
   }
@@ -62,6 +64,10 @@ export function useMinimaxVoices(apiKey: string) {
       })
       .finally(() => setLoading(false));
   }, [apiKey]);
+
+  // Use ref to avoid re-running on every render
+  const apiKeyRef = useRef(apiKey);
+  apiKeyRef.current = apiKey;
 
   useEffect(() => {
     fetchVoices();

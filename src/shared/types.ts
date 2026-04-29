@@ -1,15 +1,16 @@
 export type TTSProviderId = "volcengine" | "minimax";
 
-export interface TTSSettings {
-  provider: TTSProviderId;
-  apiKey: string;
-  resourceId: string;
-  voiceType: string;
-  speechRate: number;
-  loudnessRate: number;
-  volcengine: VolcengineSettings;
-  minimax: MinimaxSettings;
-}
+export type MinimaxModel =
+  | "speech-2.8-hd"
+  | "speech-2.8-turbo"
+  | "speech-2.6-hd"
+  | "speech-2.6-turbo"
+  | "speech-02-hd"
+  | "speech-02-turbo"
+  | "speech-01-hd"
+  | "speech-01-turbo";
+
+export type MinimaxAudioFormat = "mp3" | "pcm" | "flac" | "wav";
 
 export interface VolcengineSettings {
   apiKey: string;
@@ -30,17 +31,18 @@ export interface MinimaxSettings {
   audioFormat: MinimaxAudioFormat;
 }
 
-export type MinimaxModel =
-  | "speech-2.8-hd"
-  | "speech-2.8-turbo"
-  | "speech-2.6-hd"
-  | "speech-2.6-turbo"
-  | "speech-02-hd"
-  | "speech-02-turbo"
-  | "speech-01-hd"
-  | "speech-01-turbo";
+export interface VoiceProfile {
+  id: string;
+  name: string;
+  provider: TTSProviderId;
+  volcengine: VolcengineSettings;
+  minimax: MinimaxSettings;
+}
 
-export type MinimaxAudioFormat = "mp3" | "pcm" | "flac" | "wav";
+export interface AppSettings {
+  profiles: VoiceProfile[];
+  activeProfileId: string;
+}
 
 export type PlaybackState = "idle" | "loading" | "playing" | "error";
 
@@ -77,7 +79,7 @@ export interface AudioStreamStartMessage {
 
 export interface AudioChunkMessage {
   type: "AUDIO_CHUNK";
-  chunk: string; // base64
+  chunk: string;
 }
 
 export interface AudioEndMessage {
@@ -120,4 +122,16 @@ export interface AudioCacheEntry {
   loudnessRate: number;
   audioSize: number;
   createdAt: number;
+}
+
+// Legacy type kept for migration
+export interface TTSSettings {
+  provider: TTSProviderId;
+  apiKey: string;
+  resourceId: string;
+  voiceType: string;
+  speechRate: number;
+  loudnessRate: number;
+  volcengine: VolcengineSettings;
+  minimax: MinimaxSettings;
 }

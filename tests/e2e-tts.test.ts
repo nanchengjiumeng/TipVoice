@@ -1,22 +1,28 @@
 import { describe, expect, it } from "vite-plus/test";
 import { VolcengineProvider } from "../src/lib/volcengine-provider.ts";
-import { DEFAULT_SETTINGS } from "../src/shared/constants.ts";
+import { DEFAULT_VOLCENGINE, DEFAULT_MINIMAX } from "../src/shared/constants.ts";
 import type { TTSSettings } from "../src/shared/types.ts";
 
 const API_KEY = import.meta.env["VITE_API_KEY"] ?? "";
 
 const volcengineProvider = new VolcengineProvider();
 
+function makeSettings(volcOverrides?: Partial<TTSSettings["volcengine"]>): TTSSettings {
+  return {
+    provider: "volcengine",
+    apiKey: API_KEY,
+    resourceId: DEFAULT_VOLCENGINE.resourceId,
+    voiceType: DEFAULT_VOLCENGINE.voiceType,
+    speechRate: DEFAULT_VOLCENGINE.speechRate,
+    loudnessRate: DEFAULT_VOLCENGINE.loudnessRate,
+    volcengine: { ...DEFAULT_VOLCENGINE, apiKey: API_KEY, ...volcOverrides },
+    minimax: { ...DEFAULT_MINIMAX },
+  };
+}
+
 describe.skipIf(!API_KEY)("e2e: Volcengine TTS API", () => {
   it("synthesizes Chinese text and receives audio chunks", { timeout: 30_000 }, async () => {
-    const settings: TTSSettings = {
-      ...DEFAULT_SETTINGS,
-      volcengine: {
-        ...DEFAULT_SETTINGS.volcengine,
-        apiKey: API_KEY,
-      },
-    };
-
+    const settings = makeSettings();
     const chunks: Uint8Array[] = [];
     await volcengineProvider.synthesizeStream(settings, "你好，这是一个测试。", (chunk) => {
       chunks.push(chunk);
@@ -34,15 +40,7 @@ describe.skipIf(!API_KEY)("e2e: Volcengine TTS API", () => {
   });
 
   it("synthesizes English text with English voice", { timeout: 30_000 }, async () => {
-    const settings: TTSSettings = {
-      ...DEFAULT_SETTINGS,
-      volcengine: {
-        ...DEFAULT_SETTINGS.volcengine,
-        apiKey: API_KEY,
-        voiceType: "en_male_tim_uranus_bigtts",
-      },
-    };
-
+    const settings = makeSettings({ voiceType: "en_male_tim_uranus_bigtts" });
     const chunks: Uint8Array[] = [];
     await volcengineProvider.synthesizeStream(settings, "Hello, this is a test.", (chunk) => {
       chunks.push(chunk);
@@ -54,14 +52,7 @@ describe.skipIf(!API_KEY)("e2e: Volcengine TTS API", () => {
   });
 
   it("supports abort cancellation mid-stream", { timeout: 30_000 }, async () => {
-    const settings: TTSSettings = {
-      ...DEFAULT_SETTINGS,
-      volcengine: {
-        ...DEFAULT_SETTINGS.volcengine,
-        apiKey: API_KEY,
-      },
-    };
-
+    const settings = makeSettings();
     const controller = new AbortController();
     let chunkCount = 0;
 
@@ -82,14 +73,7 @@ describe.skipIf(!API_KEY)("e2e: Volcengine TTS API", () => {
   });
 
   it("rejects with error for invalid API key", { timeout: 30_000 }, async () => {
-    const settings: TTSSettings = {
-      ...DEFAULT_SETTINGS,
-      volcengine: {
-        ...DEFAULT_SETTINGS.volcengine,
-        apiKey: "invalid-key-12345",
-      },
-    };
-
+    const settings = makeSettings({ apiKey: "invalid-key-12345" });
     await expect(volcengineProvider.synthesizeStream(settings, "测试", () => {})).rejects.toThrow();
   });
 });

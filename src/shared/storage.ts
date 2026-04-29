@@ -1,28 +1,100 @@
-import type { TTSSettings } from "./types.ts";
-import { DEFAULT_SETTINGS, STORAGE_KEY } from "./constants.ts";
+import type { AppSettings, VoiceProfile, TTSSettings, TTSProviderId } from "./types.ts";
+import {
+  PROFILES_STORAGE_KEY,
+  SETTINGS_STORAGE_KEY,
+  DEFAULT_PROFILES,
+  DEFAULT_VOLCENGINE,
+  DEFAULT_MINIMAX,
+} from "./constants.ts";
 
-function deepCloneDefaults(): TTSSettings {
+function generateId(): string {
+  return `profile_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+export function createProfile(name: string, provider: TTSProviderId): VoiceProfile {
   return {
-    ...DEFAULT_SETTINGS,
-    volcengine: { ...DEFAULT_SETTINGS.volcengine },
-    minimax: { ...DEFAULT_SETTINGS.minimax },
+    id: generateId(),
+    name,
+    provider,
+    volcengine: { ...DEFAULT_VOLCENGINE },
+    minimax: { ...DEFAULT_MINIMAX },
   };
 }
 
-function migrateSettings(stored: Record<string, unknown>): TTSSettings {
+export async function getAppSettings(): Promise<AppSettings> {
+  const result = await chrome.storage.sync.get([PROFILES_STORAGE_KEY, SETTINGS_STORAGE_KEY]);
+  const storedProfiles = (result[PROFILES_STORAGE_KEY] ?? null) as VoiceProfile[] | null;
+
+  if (storedProfiles && storedProfiles.length > 0) {
+    const settingsData = result[SETTINGS_STORAGE_KEY] as Record<string, unknown> | undefined;
+    return {
+      profiles: storedProfiles,
+      activeProfileId: (settingsData?.activeProfileId as string) ?? storedProfiles[0].id,
+    };
+  }
+
+  const legacy = (result[SETTINGS_STORAGE_KEY] ?? {}) as Record<string, unknown>;
+  if (legacy.provider || legacy.apiKey || legacy.volcengine) {
+    const migrated = migrateLegacySettings(legacy);
+    const settings: AppSettings = {
+      profiles: migrated,
+      activeProfileId: migrated[0].id,
+    };
+    await chrome.storage.sync.set({
+      [PROFILES_STORAGE_KEY]: settings.profiles,
+      [SETTINGS_STORAGE_KEY]: { activeProfileId: settings.activeProfileId },
+    });
+    return settings;
+  }
+
+  const settings: AppSettings = {
+    profiles: DEFAULT_PROFILES,
+    activeProfileId: DEFAULT_PROFILES[0].id,
+  };
+  return settings;
+}
+
+export async function saveAppSettings(settings: AppSettings): Promise<void> {
+  await chrome.storage.sync.set({
+    [PROFILES_STORAGE_KEY]: settings.profiles,
+    [SETTINGS_STORAGE_KEY]: { activeProfileId: settings.activeProfileId },
+  });
+}
+
+export async function saveProfiles(profiles: VoiceProfile[]): Promise<void> {
+  await chrome.storage.sync.set({ [PROFILES_STORAGE_KEY]: profiles });
+}
+
+export async function saveActiveProfileId(activeProfileId: string): Promise<void> {
+  await chrome.storage.sync.set({ [SETTINGS_STORAGE_KEY]: { activeProfileId } });
+}
+
+export function onSettingsChanged(callback: (settings: AppSettings) => void): () => void {
+  const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+    if (area === "sync" && (changes[PROFILES_STORAGE_KEY] || changes[SETTINGS_STORAGE_KEY])) {
+      void getAppSettings().then(callback);
+    }
+  };
+  chrome.storage.onChanged.addListener(listener);
+  return () => chrome.storage.onChanged.removeListener(listener);
+}
+
+function deepCloneDefaults(): TTSSettings {
+  return {
+    provider: "volcengine",
+    apiKey: "",
+    resourceId: DEFAULT_VOLCENGINE.resourceId,
+    voiceType: DEFAULT_VOLCENGINE.voiceType,
+    speechRate: DEFAULT_VOLCENGINE.speechRate,
+    loudnessRate: DEFAULT_VOLCENGINE.loudnessRate,
+    volcengine: { ...DEFAULT_VOLCENGINE },
+    minimax: { ...DEFAULT_MINIMAX },
+  };
+}
+
+function migrateLegacySettings(stored: Record<string, unknown>): VoiceProfile[] {
   const settings = deepCloneDefaults();
 
-  // Auto-fill API keys from env vars in development when storage is empty
-  if (!settings.volcengine.apiKey) {
-    const envKey = import.meta.env["VITE_API_KEY"];
-    if (typeof envKey === "string" && envKey) settings.volcengine.apiKey = envKey;
-  }
-  if (!settings.minimax.apiKey) {
-    const envKey = import.meta.env["VITE_API_KEY_MINIMAX"];
-    if (typeof envKey === "string" && envKey) settings.minimax.apiKey = envKey;
-  }
-
-  // Top-level legacy fields
   if (typeof stored.apiKey === "string") settings.volcengine.apiKey = stored.apiKey;
   if (typeof stored.resourceId === "string") settings.volcengine.resourceId = stored.resourceId;
   if (typeof stored.voiceType === "string") settings.volcengine.voiceType = stored.voiceType;
@@ -30,11 +102,8 @@ function migrateSettings(stored: Record<string, unknown>): TTSSettings {
   if (typeof stored.loudnessRate === "number")
     settings.volcengine.loudnessRate = stored.loudnessRate;
 
-  // New provider field
-  if (typeof stored.provider === "string")
-    settings.provider = stored.provider as TTSSettings["provider"];
+  if (typeof stored.provider === "string") settings.provider = stored.provider as TTSProviderId;
 
-  // Nested volcengine settings (override top-level if present)
   if (stored.volcengine && typeof stored.volcengine === "object") {
     const v = stored.volcengine as Record<string, unknown>;
     if (typeof v.apiKey === "string") settings.volcengine.apiKey = v.apiKey;
@@ -44,7 +113,6 @@ function migrateSettings(stored: Record<string, unknown>): TTSSettings {
     if (typeof v.loudnessRate === "number") settings.volcengine.loudnessRate = v.loudnessRate;
   }
 
-  // Nested minimax settings
   if (stored.minimax && typeof stored.minimax === "object") {
     const m = stored.minimax as Record<string, unknown>;
     if (typeof m.apiKey === "string") settings.minimax.apiKey = m.apiKey;
@@ -59,36 +127,91 @@ function migrateSettings(stored: Record<string, unknown>): TTSSettings {
       settings.minimax.audioFormat = m.audioFormat as TTSSettings["minimax"]["audioFormat"];
   }
 
-  return settings;
+  const profiles: VoiceProfile[] = [];
+
+  if (settings.volcengine.apiKey) {
+    profiles.push({
+      id: "migrated-volcengine",
+      name: "火山引擎",
+      provider: "volcengine",
+      volcengine: { ...settings.volcengine },
+      minimax: { ...DEFAULT_MINIMAX },
+    });
+  }
+
+  if (settings.minimax.apiKey) {
+    profiles.push({
+      id: "migrated-minimax",
+      name: "MiniMax",
+      provider: "minimax",
+      volcengine: { ...DEFAULT_VOLCENGINE },
+      minimax: { ...settings.minimax },
+    });
+  }
+
+  if (profiles.length === 0) {
+    profiles.push({
+      id: "migrated-volcengine",
+      name: "火山引擎",
+      provider: settings.provider,
+      volcengine: { ...settings.volcengine },
+      minimax: { ...settings.minimax },
+    });
+  }
+
+  return profiles;
 }
 
 export async function getSettings(): Promise<TTSSettings> {
-  const result = await chrome.storage.sync.get(STORAGE_KEY);
-  const stored = (result[STORAGE_KEY] ?? {}) as Record<string, unknown>;
-  return migrateSettings(stored);
-}
+  const appSettings = await getAppSettings();
+  const active =
+    appSettings.profiles.find((p) => p.id === appSettings.activeProfileId) ??
+    appSettings.profiles[0];
+  if (!active) {
+    return {
+      provider: "volcengine",
+      apiKey: "",
+      resourceId: DEFAULT_VOLCENGINE.resourceId,
+      voiceType: DEFAULT_VOLCENGINE.voiceType,
+      speechRate: DEFAULT_VOLCENGINE.speechRate,
+      loudnessRate: DEFAULT_VOLCENGINE.loudnessRate,
+      volcengine: { ...DEFAULT_VOLCENGINE },
+      minimax: { ...DEFAULT_MINIMAX },
+    };
+  }
+  const settings = profileToSettings(active);
 
-export async function saveSettings(partial: Partial<TTSSettings>): Promise<void> {
-  const current = await getSettings();
-  const updated = {
-    ...current,
-    ...(partial.volcengine ? { volcengine: { ...current.volcengine, ...partial.volcengine } } : {}),
-    ...(partial.minimax ? { minimax: { ...current.minimax, ...partial.minimax } } : {}),
-  };
-
-  // Also pick up any top-level primitive fields from partial
-  if (partial.provider !== undefined) updated.provider = partial.provider;
-
-  await chrome.storage.sync.set({ [STORAGE_KEY]: updated });
-}
-
-export function onSettingsChanged(callback: (settings: TTSSettings) => void): () => void {
-  const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
-    if (area === "sync" && changes[STORAGE_KEY]) {
-      const stored = (changes[STORAGE_KEY].newValue ?? {}) as Record<string, unknown>;
-      callback(migrateSettings(stored));
+  if (import.meta.env.DEV && active.id.startsWith("default-")) {
+    if (active.provider === "volcengine" && !settings.volcengine.apiKey) {
+      const envKey = import.meta.env.VITE_API_KEY;
+      if (envKey) {
+        settings.volcengine.apiKey = envKey;
+        settings.apiKey = envKey;
+      }
     }
-  };
-  chrome.storage.onChanged.addListener(listener);
-  return () => chrome.storage.onChanged.removeListener(listener);
+    if (active.provider === "minimax" && !settings.minimax.apiKey) {
+      const envKey = import.meta.env.VITE_API_KEY_MINIMAX;
+      if (envKey) {
+        settings.minimax.apiKey = envKey;
+        settings.apiKey = envKey;
+      }
+    }
+  }
+
+  return settings;
 }
+
+export function profileToSettings(profile: VoiceProfile): TTSSettings {
+  return {
+    provider: profile.provider,
+    apiKey: profile.provider === "volcengine" ? profile.volcengine.apiKey : profile.minimax.apiKey,
+    resourceId: profile.volcengine.resourceId,
+    voiceType: profile.volcengine.voiceType,
+    speechRate: profile.volcengine.speechRate,
+    loudnessRate: profile.volcengine.loudnessRate,
+    volcengine: { ...profile.volcengine },
+    minimax: { ...profile.minimax },
+  };
+}
+
+export async function saveSettings(_partial: Partial<TTSSettings>): Promise<void> {}

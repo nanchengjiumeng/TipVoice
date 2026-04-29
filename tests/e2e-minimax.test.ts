@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { MinimaxProvider } from "../src/lib/minimax-provider.ts";
-import { DEFAULT_SETTINGS } from "../src/shared/constants.ts";
+import { DEFAULT_MINIMAX, DEFAULT_VOLCENGINE } from "../src/shared/constants.ts";
 import type { TTSSettings } from "../src/shared/types.ts";
 
 const MINIMAX_API_KEY = import.meta.env["VITE_API_KEY_MINIMAX"] ?? "";
@@ -9,10 +9,15 @@ const minimaxProvider = new MinimaxProvider();
 
 function getMinimaxSettings(overrides?: Partial<TTSSettings["minimax"]>): TTSSettings {
   return {
-    ...DEFAULT_SETTINGS,
     provider: "minimax",
+    apiKey: MINIMAX_API_KEY,
+    resourceId: DEFAULT_VOLCENGINE.resourceId,
+    voiceType: DEFAULT_VOLCENGINE.voiceType,
+    speechRate: DEFAULT_VOLCENGINE.speechRate,
+    loudnessRate: DEFAULT_VOLCENGINE.loudnessRate,
+    volcengine: { ...DEFAULT_VOLCENGINE },
     minimax: {
-      ...DEFAULT_SETTINGS.minimax,
+      ...DEFAULT_MINIMAX,
       apiKey: MINIMAX_API_KEY,
       ...overrides,
     },

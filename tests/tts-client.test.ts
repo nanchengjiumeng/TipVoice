@@ -3,14 +3,17 @@ import { resetChromeStorage } from "./setup.ts";
 import { VolcengineProvider } from "../src/lib/volcengine-provider.ts";
 import { TTSNetworkError } from "../src/lib/provider.ts";
 import type { TTSSettings } from "../src/shared/types.ts";
-import { DEFAULT_SETTINGS } from "../src/shared/constants.ts";
+import { DEFAULT_VOLCENGINE, DEFAULT_MINIMAX } from "../src/shared/constants.ts";
 
 const mockSettings: TTSSettings = {
-  ...DEFAULT_SETTINGS,
-  volcengine: {
-    ...DEFAULT_SETTINGS.volcengine,
-    apiKey: "test-api-key",
-  },
+  provider: "volcengine",
+  apiKey: "test-api-key",
+  resourceId: DEFAULT_VOLCENGINE.resourceId,
+  voiceType: DEFAULT_VOLCENGINE.voiceType,
+  speechRate: DEFAULT_VOLCENGINE.speechRate,
+  loudnessRate: DEFAULT_VOLCENGINE.loudnessRate,
+  volcengine: { ...DEFAULT_VOLCENGINE, apiKey: "test-api-key" },
+  minimax: { ...DEFAULT_MINIMAX },
 };
 
 const encoder = new TextEncoder();

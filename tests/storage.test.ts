@@ -1,6 +1,12 @@
 import { describe, expect, it, beforeEach } from "vite-plus/test";
-import { getSettings, saveSettings, onSettingsChanged } from "../src/shared/storage.ts";
-import { DEFAULT_SETTINGS } from "../src/shared/constants.ts";
+import {
+  getAppSettings,
+  saveAppSettings,
+  saveProfiles,
+  getSettings,
+} from "../src/shared/storage.ts";
+import { DEFAULT_VOLCENGINE, DEFAULT_MINIMAX } from "../src/shared/constants.ts";
+import type { VoiceProfile } from "../src/shared/types.ts";
 import { resetChromeStorage } from "./setup.ts";
 
 describe("storage", () => {
@@ -8,106 +14,81 @@ describe("storage", () => {
     resetChromeStorage();
   });
 
-  it("returns default settings when storage is empty", async () => {
-    const settings = await getSettings();
-    // API keys may be auto-filled from env vars in dev mode
-    expect(settings.provider).toBe("volcengine");
-    expect(settings.volcengine.resourceId).toBe("seed-tts-2.0");
-    expect(settings.minimax.model).toBe("speech-2.8-turbo");
+  it("returns default profiles when storage is empty", async () => {
+    const settings = await getAppSettings();
+    expect(settings.profiles.length).toBeGreaterThanOrEqual(2);
+    expect(settings.profiles[0].provider).toBe("volcengine");
+    expect(settings.profiles[1].provider).toBe("minimax");
   });
 
-  it("merges stored partial settings with defaults", async () => {
-    await chrome.storage.sync.set({
-      tts_settings: { volcengine: { apiKey: "test-key" } },
-    });
-
-    const settings = await getSettings();
-    expect(settings.volcengine.apiKey).toBe("test-key");
-    expect(settings.volcengine.resourceId).toBe("seed-tts-2.0");
-    expect(settings.volcengine.voiceType).toBe("zh_male_wennuanahu_uranus_bigtts");
+  it("saves and loads profiles", async () => {
+    const profiles: VoiceProfile[] = [
+      {
+        id: "test-1",
+        name: "Test Profile",
+        provider: "volcengine",
+        volcengine: { ...DEFAULT_VOLCENGINE, apiKey: "test-key" },
+        minimax: { ...DEFAULT_MINIMAX },
+      },
+    ];
+    await saveAppSettings({ profiles, activeProfileId: "test-1" });
+    const loaded = await getAppSettings();
+    expect(loaded.profiles.length).toBe(1);
+    expect(loaded.profiles[0].name).toBe("Test Profile");
+    expect(loaded.profiles[0].volcengine.apiKey).toBe("test-key");
+    expect(loaded.activeProfileId).toBe("test-1");
   });
 
-  it("saves nested provider settings", async () => {
-    await saveSettings({
-      volcengine: { ...DEFAULT_SETTINGS.volcengine, apiKey: "my-key" },
-    });
-    const settings = await getSettings();
-    expect(settings.volcengine.apiKey).toBe("my-key");
-    expect(settings.volcengine.voiceType).toBe("zh_male_wennuanahu_uranus_bigtts");
-  });
-
-  it("updates existing settings without losing others", async () => {
-    await saveSettings({
-      volcengine: { ...DEFAULT_SETTINGS.volcengine, apiKey: "key1" },
-    });
-    await saveSettings({
-      volcengine: { ...DEFAULT_SETTINGS.volcengine, apiKey: "key1", speechRate: 10 },
-    });
-
-    const settings = await getSettings();
-    expect(settings.volcengine.apiKey).toBe("key1");
-    expect(settings.volcengine.speechRate).toBe(10);
-  });
-
-  it("saves minimax settings independently", async () => {
-    await saveSettings({
-      minimax: { ...DEFAULT_SETTINGS.minimax, apiKey: "minimax-key" },
-    });
-    const settings = await getSettings();
-    expect(settings.minimax.apiKey).toBe("minimax-key");
-    expect(settings.provider).toBe("volcengine");
-  });
-
-  it("switches provider", async () => {
-    await saveSettings({ provider: "minimax" });
-    const settings = await getSettings();
-    expect(settings.provider).toBe("minimax");
-  });
-
-  it("migrates legacy flat settings to nested volcengine", async () => {
+  it("migrates legacy flat settings to profiles", async () => {
     await chrome.storage.sync.set({
       tts_settings: {
+        provider: "volcengine",
         apiKey: "legacy-key",
         voiceType: "legacy-voice",
-        speechRate: 5,
+        volcengine: {
+          apiKey: "legacy-key",
+          resourceId: "seed-tts-2.0",
+          voiceType: "legacy-voice",
+          speechRate: 5,
+          loudnessRate: 0,
+        },
       },
     });
 
-    const settings = await getSettings();
-    expect(settings.volcengine.apiKey).toBe("legacy-key");
-    expect(settings.volcengine.voiceType).toBe("legacy-voice");
-    expect(settings.volcengine.speechRate).toBe(5);
+    const settings = await getAppSettings();
+    expect(settings.profiles.length).toBeGreaterThanOrEqual(1);
+    expect(settings.profiles[0].volcengine.apiKey).toBe("legacy-key");
   });
 
-  it("notifies listeners on settings change", async () => {
-    let notified = false;
-    const unsub = onSettingsChanged((settings) => {
-      notified = true;
-      expect(settings.volcengine.apiKey).toBe("changed");
-    });
+  it("getSettings returns active profile as TTSSettings", async () => {
+    const profile: VoiceProfile = {
+      id: "active-test",
+      name: "Active Test",
+      provider: "minimax",
+      volcengine: { ...DEFAULT_VOLCENGINE },
+      minimax: { ...DEFAULT_MINIMAX, apiKey: "mm-key", voiceId: "test-voice" },
+    };
+    await saveAppSettings({ profiles: [profile], activeProfileId: "active-test" });
 
-    await saveSettings({
-      volcengine: { ...DEFAULT_SETTINGS.volcengine, apiKey: "changed" },
-    });
-    expect(notified).toBe(true);
-
-    unsub();
+    const ttsSettings = await getSettings();
+    expect(ttsSettings.provider).toBe("minimax");
+    expect(ttsSettings.minimax.apiKey).toBe("mm-key");
+    expect(ttsSettings.minimax.voiceId).toBe("test-voice");
   });
 
-  it("stops notifying after unsubscribe", async () => {
-    let callCount = 0;
-    const unsub = onSettingsChanged(() => {
-      callCount++;
-    });
-
-    await saveSettings({
-      volcengine: { ...DEFAULT_SETTINGS.volcengine, apiKey: "a" },
-    });
-    unsub();
-    await saveSettings({
-      volcengine: { ...DEFAULT_SETTINGS.volcengine, apiKey: "b" },
-    });
-
-    expect(callCount).toBe(1);
+  it("saves profiles correctly", async () => {
+    const profiles: VoiceProfile[] = [
+      {
+        id: "p1",
+        name: "Profile 1",
+        provider: "volcengine",
+        volcengine: { ...DEFAULT_VOLCENGINE, apiKey: "key-1" },
+        minimax: { ...DEFAULT_MINIMAX },
+      },
+    ];
+    await saveProfiles(profiles);
+    const loaded = await getAppSettings();
+    expect(loaded.profiles.length).toBe(1);
+    expect(loaded.profiles[0].volcengine.apiKey).toBe("key-1");
   });
 });
