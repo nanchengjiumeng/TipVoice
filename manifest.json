@@ -3,7 +3,7 @@
   "name": "Tip Voice(Beta)",
   "version": "0.0.1",
   "description": "选中文本，即可通过语音合成（TTS）实时朗读发声，支持火山引擎和 MiniMax，此扩展程序目前处于 Beta 版测试阶段，欢迎试用并提供反馈！",
-  "permissions": ["activeTab", "storage", "offscreen"],
+  "permissions": ["storage", "offscreen"],
   "host_permissions": ["https://openspeech.bytedance.com/*", "https://api.minimaxi.com/*"],
   "action": {
     "default_popup": "popup.html",
