@@ -43,44 +43,45 @@ export const DEFAULT_MINIMAX: MinimaxSettings = {
   audioFormat: "mp3",
 };
 
-export const DEFAULT_MINIMAX_TRANSLATION: MinimaxTranslationSettings = {
-  apiKey: "",
-  model: "MiniMax-M2.7-highspeed",
-  prompt: `按以下Markdown模板输出单词[单词]的词典释义，严格遵循表格格式，覆盖单复数与不同词性：
+export const DEFAULT_PROMPT = `# 角色与任务
+你是一个专业的中英文翻译与词典助手。
+
+# 处理逻辑
+1. 输入为句子：直接给出流畅、自然的中文翻译。
+2. 输入为单词：严格按照下方的模板输出该单词的词典释义。
+
+# 单词输出规则
+1. 单词原形：发音和链接必须使用去复数、去变形后的单词原形。
+2. 音频链接：使用有道语音接口：
+   - 英音 (UK): https://dict.youdao.com/dictvoice?type=1&audio=[单词原形]
+   - 美音 (US): https://dict.youdao.com/dictvoice?type=2&audio=[单词原形]
+3. 格式要求：严格遵循表格格式，使用 HTML audio 标签。
+
+---
 
 # [单词原形] / [复数/变形]
-
 [简短核心中文释义]
 
-| 发音 | 音标 |
+| 发音 | 音标与音频 |
 |---|---|
-| 英式音标 | [英式音标] |
-| 美式音标 | [美式音标] |
+| 英式发音 | [英式音标] <audio src="https://dict.youdao.com/dictvoice?type=1&audio=[单词原形]" controls></audio> |
+| 美式发音 | [美式音标] <audio src="https://dict.youdao.com/dictvoice?type=2&audio=[单词原形]" controls></audio> |
 
 | 词性 | 释义(含英文) | 示例 |
 |---|---|---|
-| [词性1] | [英文版释义1+中文释义1] | [示例1] |
-| [词性2] | [英文版释义2+中文释义2] | [示例2] |`,
+| [词性1] | [英文解释] [中文释义] | [英文例句] [中文对照] |
+| [词性2] | [英文解释] [中文释义] | [英文例句] [中文对照] |`;
+
+export const DEFAULT_MINIMAX_TRANSLATION: MinimaxTranslationSettings = {
+  apiKey: "",
+  model: "MiniMax-M2.7-highspeed",
+  prompt: DEFAULT_PROMPT,
 };
 
 export const DEFAULT_SILICONFLOW_TRANSLATION: SiliconflowTranslationSettings = {
   apiKey: "",
   model: "deepseek-ai/DeepSeek-V4-Flash",
-  prompt: `按以下Markdown模板输出单词[单词]的词典释义，严格遵循表格格式，覆盖单复数与不同词性：
-
-# [单词原形] / [复数/变形]
-
-[简短核心中文释义]
-
-| 发音 | 音标 |
-|---|---|
-| 英式音标 | [英式音标] |
-| 美式音标 | [美式音标] |
-
-| 词性 | 释义(含英文) | 示例 |
-|---|---|---|
-| [词性1] | [英文版释义1+中文释义1] | [示例1] |
-| [词性2] | [英文版释义2+中文释义2] | [示例2] |`,
+  prompt: DEFAULT_PROMPT,
   enableThinking: false,
 };
 

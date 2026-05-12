@@ -73,3 +73,52 @@
   color: #4b5563;
   padding-left: 10px;
 }
+
+.cache-markdown .audio-play-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: white;
+  cursor: pointer;
+  vertical-align: middle;
+  overflow: hidden;
+  transition: background 0.2s ease;
+}
+
+.cache-markdown .audio-play-btn:hover {
+  background: #2563eb;
+}
+
+.cache-markdown .audio-play-btn:active {
+  background: #1d4ed8;
+}
+
+.cache-markdown .audio-play-btn svg {
+  display: block;
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.cache-markdown .audio-ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  transform: scale(0);
+  animation: audio-ripple-expand 0.5s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes audio-ripple-expand {
+  to {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}

@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import { normalizeMarkdown } from "../shared/markdown.ts";
 import styles from "./styles.css?inline";
 
@@ -24,10 +25,52 @@ export interface TranslationResult {
   pending?: boolean;
 }
 
+function AudioPlayer({ src }: { src: string }) {
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const btn = e.currentTarget;
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    const x = e.clientX - rect.left - size / 2;
+    const y = e.clientY - rect.top - size / 2;
+    const ripple = document.createElement("span");
+    ripple.className = "audio-ripple";
+    ripple.style.width = ripple.style.height = `${size}px`;
+    ripple.style.left = `${x}px`;
+    ripple.style.top = `${y}px`;
+    btn.appendChild(ripple);
+    ripple.addEventListener("animationend", () => ripple.remove());
+
+    const audio = new Audio(src);
+    audio.play().catch(() => {
+      /* CORS or playback error - silently ignore */
+    });
+  };
+  return (
+    <button className="audio-play-btn" onClick={handleClick} title="播放发音" type="button">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+        <path d="M8 5v14l11-7z" />
+      </svg>
+    </button>
+  );
+}
+
 function MarkdownText({ value }: { value: string }) {
   return (
     <div className="translation-markdown">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeMarkdown(value)}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw]}
+        components={{
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          audio: (props: any) => {
+            const src: string | undefined = props?.src;
+            if (!src) return null;
+            return <AudioPlayer src={src} />;
+          },
+        }}
+      >
+        {normalizeMarkdown(value)}
+      </ReactMarkdown>
     </div>
   );
 }

@@ -1,10 +1,38 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import type { AudioCacheEntry, TranslationCacheEntry, CacheType } from "../../shared/types.ts";
 import { normalizeMarkdown } from "../../shared/markdown.ts";
 import { useCacheData } from "./useCacheData.ts";
 import { Button, Card, Checkbox, Chip, Input, ProgressBar, Tabs } from "@heroui/react";
+
+function AudioPlayer({ src }: { src: string }) {
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const btn = e.currentTarget;
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    const x = e.clientX - rect.left - size / 2;
+    const y = e.clientY - rect.top - size / 2;
+    const ripple = document.createElement("span");
+    ripple.className = "audio-ripple";
+    ripple.style.width = ripple.style.height = `${size}px`;
+    ripple.style.left = `${x}px`;
+    ripple.style.top = `${y}px`;
+    btn.appendChild(ripple);
+    ripple.addEventListener("animationend", () => ripple.remove());
+
+    const audio = new Audio(src);
+    audio.play().catch(() => {});
+  };
+  return (
+    <button className="audio-play-btn" onClick={handleClick} title="播放发音" type="button">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+        <path d="M8 5v14l11-7z" />
+      </svg>
+    </button>
+  );
+}
 
 export function CacheView() {
   const data = useCacheData();
@@ -91,7 +119,18 @@ export function CacheView() {
                 <div>
                   <span className="text-gray-500">结果：</span>
                   <div className="cache-markdown mt-2 p-3 bg-gray-50 rounded text-sm">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeRaw]}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      components={{
+                        audio: (props: any) => {
+                          const src: string | undefined = props?.src;
+                          if (!src) return null;
+                          return <AudioPlayer src={src} />;
+                        },
+                      }}
+                    >
                       {normalizeMarkdown((detailEntry as unknown as TranslationCacheEntry).result)}
                     </ReactMarkdown>
                   </div>
