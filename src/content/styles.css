@@ -1,26 +1,370 @@
 :host {
-  position: fixed;
-  z-index: 2147483647;
-  pointer-events: none;
+  pointer-events: auto;
+}
+
+#tts-reader-host,
+#tts-translate-btn-host,
+#tts-translation-host {
+  position: absolute;
+  z-index: 9999;
+  pointer-events: auto;
 }
 
 .tts-btn {
-  pointer-events: auto;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  padding: 6px;
   border: none;
-  background: #4a90d9;
-  color: white;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   cursor: pointer;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  transition:
-    background 0.2s,
-    transform 0.15s;
+}
+
+.tts-btn:hover {
+  background: #f0f0f0;
+  transform: scale(1.05);
+}
+
+.tts-btn:active {
+  transform: scale(0.95);
+}
+
+.tts-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.tts-btn[data-state="idle"] {
+  color: #4a5568;
+}
+
+.tts-btn[data-state="loading"] {
+  color: #3b82f6;
+}
+
+.tts-btn[data-state="playing"] {
+  color: #ef4444;
+  background: #fee2e2;
+}
+
+.tts-btn[data-state="error"] {
+  color: #ef4444;
+  background: #fee2e2;
+}
+
+.icon-loading {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tts-translate-btn {
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  border: none;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #10b981;
+}
+
+.tts-translate-btn:hover {
+  background: #f0fdf4;
+  transform: scale(1.05);
+}
+
+.tts-translate-btn:active {
+  transform: scale(0.95);
+}
+
+.tts-translate-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.translation-panel {
+  position: fixed;
+  width: 475px;
+  min-width: 320px;
+  min-height: 180px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  font-size: 14px;
+  z-index: 10000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.translation-panel.pinned {
+  box-shadow:
+    0 0 0 2px rgba(59, 130, 246, 0.35),
+    0 8px 24px rgba(0, 0, 0, 0.24);
+}
+
+.translation-panel.dragging,
+.translation-panel.resizing {
+  user-select: none;
+}
+
+.translation-header {
+  padding: 12px 16px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: move;
+  flex-shrink: 0;
+}
+
+.translation-title {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.translation-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.translation-icon-btn {
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.translation-icon-btn:hover,
+.translation-icon-btn.active {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+
+.translation-icon-btn.active {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.translation-icon-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.translation-content {
+  padding: 12px 16px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.translation-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+}
+
+.translation-resize-handle::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #9ca3af;
+  border-bottom: 2px solid #9ca3af;
+}
+
+.translation-item {
+  margin-bottom: 12px;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.translation-item:last-child {
+  margin-bottom: 0;
+}
+
+.translation-item.success {
+  border-color: #10b981;
+  background: #f0fdf4;
+}
+
+.translation-item.error {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+.translation-item.loading {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.translation-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.translation-profile-name {
+  font-weight: 500;
+  color: #374151;
+  font-size: 12px;
+}
+
+.translation-status {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.translation-status.success {
+  background: #10b981;
+  color: white;
+}
+
+.translation-status.error {
+  background: #ef4444;
+  color: white;
+}
+
+.translation-status.loading {
+  background: #3b82f6;
+  color: white;
+}
+
+.translation-text {
+  color: #1f2937;
+  line-height: 1.5;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.translation-text.error {
+  color: #ef4444;
+}
+
+.translation-text.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+
+.translation-markdown > :first-child {
+  margin-top: 0;
+}
+
+.translation-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.translation-markdown p,
+.translation-markdown ul,
+.translation-markdown ol,
+.translation-markdown table,
+.translation-markdown pre,
+.translation-markdown blockquote {
+  margin: 6px 0;
+}
+
+.translation-markdown ul,
+.translation-markdown ol {
+  padding-left: 18px;
+}
+
+.translation-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.translation-markdown th,
+.translation-markdown td {
+  border: 1px solid #d1d5db;
+  padding: 4px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.translation-markdown th {
+  background: #f9fafb;
+  font-weight: 600;
+}
+
+.translation-markdown code {
+  background: #f3f4f6;
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
+.translation-markdown pre {
+  background: #111827;
+  border-radius: 6px;
+  color: #f9fafb;
+  overflow-x: auto;
+  padding: 8px;
+}
+
+.translation-markdown pre code {
+  background: transparent;
+  color: inherit;
   padding: 0;
+}
+
+.translation-markdown blockquote {
+  border-left: 3px solid #d1d5db;
+  color: #4b5563;
+  padding-left: 8px;
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #3b82f6;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
 .tts-btn:hover {

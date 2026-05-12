@@ -1,6 +1,6 @@
 import { Button } from "@heroui/react";
 
-type Page = "profiles" | "cache";
+type Page = "profiles" | "cache" | "translations";
 
 interface Props {
   activePage: Page;
@@ -9,6 +9,7 @@ interface Props {
 
 const items: { key: Page; label: string; icon: string }[] = [
   { key: "profiles", label: "语音方案", icon: "🎙" },
+  { key: "translations", label: "翻译方案", icon: "🌐" },
   { key: "cache", label: "缓存管理", icon: "📁" },
 ];
 

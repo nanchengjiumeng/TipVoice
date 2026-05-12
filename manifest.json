@@ -4,7 +4,15 @@
   "version": "0.0.1",
   "description": "选中文本，即可通过语音合成（TTS）实时朗读发声，支持火山引擎和 MiniMax，此扩展程序目前处于 Beta 版测试阶段，欢迎试用并提供反馈！",
   "permissions": ["storage", "offscreen"],
-  "host_permissions": ["https://openspeech.bytedance.com/*", "https://api.minimaxi.com/*"],
+  "host_permissions": [
+    "https://openspeech.bytedance.com/*",
+    "https://api.minimaxi.com/*",
+    "https://api.siliconflow.cn/*",
+    "http://localhost:*/*",
+    "http://localhost/*",
+    "http://127.0.0.1:*/*",
+    "http://127.0.0.1/*"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -19,13 +27,22 @@
     "128": "icons/icon-128.png"
   },
   "background": {
-    "service_worker": "src/background/index.ts"
+    "service_worker": "src/background/index.ts",
+    "type": "module"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
       "js": ["src/content/index.ts"],
       "run_at": "document_idle"
+    }
+  ],
+  "options_page": "manager.html",
+  "web_accessible_resources": [
+    {
+      "resources": ["*"],
+      "matches": ["<all_urls>"],
+      "use_dynamic_url": true
     }
   ]
 }

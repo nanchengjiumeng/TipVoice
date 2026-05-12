@@ -4,9 +4,15 @@ import {
   saveAppSettings,
   saveProfiles,
   getSettings,
+  getTranslationSettings,
 } from "../src/shared/storage.ts";
-import { DEFAULT_VOLCENGINE, DEFAULT_MINIMAX } from "../src/shared/constants.ts";
-import type { VoiceProfile } from "../src/shared/types.ts";
+import {
+  DEFAULT_VOLCENGINE,
+  DEFAULT_MINIMAX,
+  DEFAULT_MINIMAX_TRANSLATION,
+  DEFAULT_SILICONFLOW_TRANSLATION,
+} from "../src/shared/constants.ts";
+import type { TranslationProfile, VoiceProfile } from "../src/shared/types.ts";
 import { resetChromeStorage } from "./setup.ts";
 
 describe("storage", () => {
@@ -90,5 +96,32 @@ describe("storage", () => {
     const loaded = await getAppSettings();
     expect(loaded.profiles.length).toBe(1);
     expect(loaded.profiles[0].volcengine.apiKey).toBe("key-1");
+  });
+
+  it("migrates legacy active translation profile to selected ids", async () => {
+    const profiles: TranslationProfile[] = [
+      {
+        id: "translation-1",
+        name: "Translation 1",
+        provider: "minimax",
+        minimax: { ...DEFAULT_MINIMAX_TRANSLATION },
+        siliconflow: { ...DEFAULT_SILICONFLOW_TRANSLATION },
+      },
+      {
+        id: "translation-2",
+        name: "Translation 2",
+        provider: "siliconflow",
+        minimax: { ...DEFAULT_MINIMAX_TRANSLATION },
+        siliconflow: { ...DEFAULT_SILICONFLOW_TRANSLATION },
+      },
+    ];
+
+    await chrome.storage.sync.set({
+      translation_profiles: profiles,
+      translation_settings: { activeTranslationProfileId: "translation-2" },
+    });
+
+    const loaded = await getTranslationSettings();
+    expect(loaded.activeTranslationProfileIds).toEqual(["translation-2"]);
   });
 });

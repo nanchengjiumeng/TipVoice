@@ -9,6 +9,12 @@ import {
   getStorageStats,
   getAudioBlob,
 } from "../src/lib/audio-cache.ts";
+import {
+  computeTranslationCacheKey,
+  getAllTranslationEntries,
+  getCachedTranslation,
+  storeCachedTranslation,
+} from "../src/lib/cache.ts";
 
 describe("audio-cache", () => {
   const provider = "volcengine";
@@ -106,6 +112,31 @@ describe("audio-cache", () => {
       const blob = await getAudioBlob(cacheKey);
       expect(blob).not.toBeNull();
       expect(blob!.size).toBe(3);
+    });
+
+    it("stores translation entries for cache management", async () => {
+      const cacheKey = await computeTranslationCacheKey("hello", "siliconflow", "profile-1");
+
+      await storeCachedTranslation({
+        cacheKey,
+        text: "hello",
+        provider: "siliconflow",
+        profileId: "profile-1",
+        profileName: "SiliconFlow",
+        result: "你好",
+      });
+
+      await expect(getCachedTranslation(cacheKey)).resolves.toBe("你好");
+      const entries = await getAllTranslationEntries();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({
+        cacheKey,
+        text: "hello",
+        provider: "siliconflow",
+        profileId: "profile-1",
+        profileName: "SiliconFlow",
+        result: "你好",
+      });
     });
   });
 

@@ -24,7 +24,11 @@ let streamEnded = false;
 let playbackStarted = false;
 let usingMediaSource = false;
 
+const log = (...args: unknown[]) => console.debug("[Tip Voice][offscreen]", ...args);
+const warn = (...args: unknown[]) => console.warn("[Tip Voice][offscreen]", ...args);
+
 function cleanup() {
+  log("cleanup audio state");
   if (audio) {
     audio.pause();
     audio.removeAttribute("src");
@@ -44,15 +48,18 @@ function cleanup() {
 }
 
 function sendState(state: "playing" | "ended" | "error") {
+  log("send audio state", { state });
   void chrome.runtime.sendMessage({ type: "AUDIO_STATE", state });
 }
 
 function onAudioEnded() {
+  log("audio ended");
   cleanup();
   sendState("ended");
 }
 
 function onAudioError() {
+  warn("audio error");
   cleanup();
   sendState("error");
 }
@@ -72,8 +79,10 @@ function processQueue() {
   if (pendingBuffers.length > 0) {
     const chunk = pendingBuffers.shift()!;
     try {
+      log("append source buffer", { bytes: chunk.byteLength, remaining: pendingBuffers.length });
       sourceBuffer.appendBuffer(chunk as BufferSource);
     } catch {
+      warn("append source buffer failed; fallback to accumulated playback");
       usingMediaSource = false;
     }
     return;
@@ -81,10 +90,14 @@ function processQueue() {
 
   if (!playbackStarted && audio && sourceBuffer.buffered.length > 0) {
     playbackStarted = true;
+    log("start media source playback");
     audio
       .play()
       .then(() => sendState("playing"))
-      .catch(() => onAudioError());
+      .catch((err) => {
+        warn("media source playback failed", err);
+        onAudioError();
+      });
   }
 
   if (streamEnded && mediaSource?.readyState === "open") {
@@ -97,10 +110,12 @@ function processQueue() {
 }
 
 function initStream(mimeType: string) {
+  log("init stream", { mimeType });
   cleanup();
   currentMimeType = mimeType;
 
   usingMediaSource = typeof MediaSource !== "undefined" && MediaSource.isTypeSupported(mimeType);
+  log("media source support", { mimeType, usingMediaSource });
 
   if (usingMediaSource) {
     mediaSource = new MediaSource();
@@ -113,10 +128,12 @@ function initStream(mimeType: string) {
 
     mediaSource.addEventListener("sourceopen", () => {
       try {
+        log("media source open");
         sourceBuffer = mediaSource!.addSourceBuffer(mimeType);
         sourceBuffer.addEventListener("updateend", processQueue);
         processQueue();
       } catch {
+        warn("add source buffer failed; fallback to accumulated playback");
         usingMediaSource = false;
       }
     });
@@ -125,6 +142,7 @@ function initStream(mimeType: string) {
 
 function appendChunk(base64: string) {
   const bytes = base64ToBytes(base64);
+  log("audio chunk received", { bytes: bytes.byteLength });
 
   accumulatedData.push(bytes);
 
@@ -135,6 +153,7 @@ function appendChunk(base64: string) {
 }
 
 function endStream() {
+  log("end stream", { chunks: accumulatedData.length, usingMediaSource });
   streamEnded = true;
 
   if (usingMediaSource) {
@@ -145,7 +164,9 @@ function endStream() {
 }
 
 function playAccumulated() {
+  log("play accumulated audio", { chunks: accumulatedData.length });
   if (accumulatedData.length === 0) {
+    warn("cannot play accumulated audio: no chunks");
     sendState("error");
     return;
   }
@@ -178,10 +199,14 @@ function playAccumulated() {
   audio
     .play()
     .then(() => sendState("playing"))
-    .catch(() => onAudioError());
+    .catch((err) => {
+      warn("accumulated playback failed", err);
+      onAudioError();
+    });
 }
 
 function playCachedAudio(audioBase64: string, mimeType: string) {
+  log("play cached audio", { mimeType, base64Length: audioBase64.length });
   cleanup();
   currentMimeType = mimeType || "audio/mpeg";
 
@@ -201,10 +226,14 @@ function playCachedAudio(audioBase64: string, mimeType: string) {
   audio
     .play()
     .then(() => sendState("playing"))
-    .catch(() => onAudioError());
+    .catch((err) => {
+      warn("cached playback failed", err);
+      onAudioError();
+    });
 }
 
 chrome.runtime.onMessage.addListener((message: OffscreenMessage) => {
+  log("message received", { type: message.type });
   if (message.type === "AUDIO_STREAM_START") {
     initStream(message.mimeType || "audio/mpeg");
     return;

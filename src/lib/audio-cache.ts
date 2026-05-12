@@ -1,204 +1,32 @@
-import type { AudioCacheEntry } from "../shared/types.ts";
 import {
-  AUDIO_BLOB_DB_NAME,
-  AUDIO_BLOB_STORE_NAME,
-  AUDIO_CACHE_MAX_BYTES,
-} from "../shared/constants.ts";
+  computeCacheKey,
+  deleteEntries as deleteCacheEntries,
+  getAllAudioEntries,
+  getAudioBlob,
+  getCachedAudio,
+  getStorageStats as getCacheStorageStats,
+  searchEntries as searchCacheEntries,
+  storeCachedAudio,
+} from "./cache.ts";
 
-const META_STORE = "metadata";
+export { computeCacheKey, getAudioBlob, getCachedAudio, storeCachedAudio };
 
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(AUDIO_BLOB_DB_NAME, 3);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(AUDIO_BLOB_STORE_NAME)) {
-        db.createObjectStore(AUDIO_BLOB_STORE_NAME);
-      }
-      if (!db.objectStoreNames.contains(META_STORE)) {
-        const store = db.createObjectStore(META_STORE, { keyPath: "cacheKey" });
-        store.createIndex("by-created", "createdAt");
-      } else {
-        // Version 3: add provider column (entries without provider default to "volcengine")
-        const store = request.transaction!.objectStore(META_STORE);
-        if (!store.indexNames.contains("by-provider")) {
-          store.createIndex("by-provider", "provider", { unique: false });
-        }
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+export async function getAllEntries() {
+  return getAllAudioEntries();
 }
 
-export async function computeCacheKey(
-  text: string,
-  provider: string,
-  voiceType: string,
-  speechRate: number,
-  loudnessRate: number,
-): Promise<string> {
-  const input = JSON.stringify([text, provider, voiceType, speechRate, loudnessRate]);
-  const data = new TextEncoder().encode(input);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  const bytes = new Uint8Array(hash);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+export async function searchEntries(query: string) {
+  return searchCacheEntries(query, "audio");
 }
 
-export async function getCachedAudio(cacheKey: string): Promise<Blob | null> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(AUDIO_BLOB_STORE_NAME, "readonly");
-    const store = tx.objectStore(AUDIO_BLOB_STORE_NAME);
-    const req = store.get(cacheKey);
-    req.onsuccess = () => resolve((req.result as Blob) ?? null);
-    req.onerror = () => reject(req.error);
-    tx.oncomplete = () => db.close();
-  });
-}
-
-export async function storeCachedAudio(params: {
-  cacheKey: string;
-  text: string;
-  provider: string;
-  voiceType: string;
-  speechRate: number;
-  loudnessRate: number;
-  audioBlob: Blob;
-}): Promise<void> {
-  const db = await openDB();
-
-  const currentSize = await new Promise<number>((resolve, reject) => {
-    const tx = db.transaction(META_STORE, "readonly");
-    const store = tx.objectStore(META_STORE);
-    const req = store.openCursor();
-    let total = 0;
-    req.onsuccess = () => {
-      const cursor = req.result;
-      if (cursor) {
-        total += (cursor.value as AudioCacheEntry).audioSize;
-        cursor.continue();
-      } else {
-        resolve(total);
-      }
-    };
-    req.onerror = () => reject(req.error);
-  });
-
-  if (currentSize + params.audioBlob.size > AUDIO_CACHE_MAX_BYTES) {
-    db.close();
-    return;
-  }
-
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction([META_STORE, AUDIO_BLOB_STORE_NAME], "readwrite");
-
-    const metaStore = tx.objectStore(META_STORE);
-    const entry: AudioCacheEntry = {
-      cacheKey: params.cacheKey,
-      text: params.text,
-      provider: params.provider as AudioCacheEntry["provider"],
-      voiceType: params.voiceType,
-      speechRate: params.speechRate,
-      loudnessRate: params.loudnessRate,
-      audioSize: params.audioBlob.size,
-      createdAt: Date.now(),
-    };
-    metaStore.put(entry);
-
-    const blobStore = tx.objectStore(AUDIO_BLOB_STORE_NAME);
-    blobStore.put(params.audioBlob, params.cacheKey);
-
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
-  });
-}
-
-export async function getAllEntries(): Promise<AudioCacheEntry[]> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(META_STORE, "readonly");
-    const store = tx.objectStore(META_STORE);
-    const index = store.index("by-created");
-    const req = index.openCursor(null, "prev");
-    const entries: AudioCacheEntry[] = [];
-    req.onsuccess = () => {
-      const cursor = req.result;
-      if (cursor) {
-        const entry = cursor.value as AudioCacheEntry;
-        if (!entry.provider) {
-          entry.provider = "volcengine";
-        }
-        entries.push(entry);
-        cursor.continue();
-      } else {
-        resolve(entries);
-      }
-    };
-    req.onerror = () => reject(req.error);
-    tx.oncomplete = () => db.close();
-  });
-}
-
-export async function searchEntries(query: string): Promise<AudioCacheEntry[]> {
-  const all = await getAllEntries();
-  const lower = query.toLowerCase();
-  return all.filter((e) => e.text.toLowerCase().includes(lower));
-}
-
-export async function getAudioBlob(cacheKey: string): Promise<Blob | null> {
-  return getCachedAudio(cacheKey);
-}
-
-export async function deleteEntries(cacheKeys: string[]): Promise<void> {
-  if (cacheKeys.length === 0) return;
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction([META_STORE, AUDIO_BLOB_STORE_NAME], "readwrite");
-    const metaStore = tx.objectStore(META_STORE);
-    const blobStore = tx.objectStore(AUDIO_BLOB_STORE_NAME);
-    for (const key of cacheKeys) {
-      metaStore.delete(key);
-      blobStore.delete(key);
-    }
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
-  });
+export async function deleteEntries(cacheKeys: string[]) {
+  return deleteCacheEntries(cacheKeys, "audio");
 }
 
 export async function getStorageStats(): Promise<{ totalSize: number; entryCount: number }> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(META_STORE, "readonly");
-    const store = tx.objectStore(META_STORE);
-    const req = store.openCursor();
-    let totalSize = 0;
-    let entryCount = 0;
-    req.onsuccess = () => {
-      const cursor = req.result;
-      if (cursor) {
-        totalSize += (cursor.value as AudioCacheEntry).audioSize;
-        entryCount++;
-        cursor.continue();
-      } else {
-        resolve({ totalSize, entryCount });
-      }
-    };
-    req.onerror = () => reject(req.error);
-    tx.oncomplete = () => db.close();
-  });
+  const stats = await getCacheStorageStats();
+  return {
+    totalSize: stats.audioTotalSize,
+    entryCount: stats.audioEntryCount,
+  };
 }

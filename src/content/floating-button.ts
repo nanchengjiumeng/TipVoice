@@ -33,6 +33,8 @@ export class FloatingButton {
   constructor() {
     this.host = document.createElement("div");
     this.host.id = "tts-reader-host";
+    this.host.style.position = "absolute";
+    this.host.style.zIndex = "9999";
     this.shadow = this.host.attachShadow({ mode: "closed" });
 
     const style = document.createElement("style");
@@ -48,6 +50,12 @@ export class FloatingButton {
       e.preventDefault();
       this.clickCallback?.();
     });
+    this.button.addEventListener("mousedown", (e) => {
+      e.stopPropagation();
+    });
+    this.button.addEventListener("mouseup", (e) => {
+      e.stopPropagation();
+    });
     this.shadow.appendChild(this.button);
   }
 
@@ -56,7 +64,6 @@ export class FloatingButton {
       document.body.appendChild(this.host);
     }
 
-    // Clamp to viewport bounds
     const btnSize = 32;
     const margin = 4;
     const clampedX = Math.min(x, window.innerWidth - btnSize - margin);
@@ -64,6 +71,8 @@ export class FloatingButton {
 
     this.host.style.left = `${clampedX}px`;
     this.host.style.top = `${clampedY}px`;
+    this.host.style.position = "absolute";
+    this.host.style.zIndex = "9999";
   }
 
   hide(): void {

@@ -1,16 +1,21 @@
 import { defineConfig } from "vite-plus";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import webExtension from "vite-plugin-web-extension";
+import { crx } from "@crxjs/vite-plugin";
+import manifest from "./manifest.json" with { type: "json" };
 
 export default defineConfig({
-  plugins: [
-    tailwindcss(),
-    react(),
-    webExtension({ additionalInputs: ["offscreen.html", "manager.html"] }),
-  ],
+  plugins: [tailwindcss(), react(), crx({ manifest })],
   build: {
     emptyOutDir: true,
+    outDir: "dist",
+  },
+  server: {
+    port: 5173,
+    strictPort: true,
+    hmr: {
+      port: 5173,
+    },
   },
   css: {
     postcss: {

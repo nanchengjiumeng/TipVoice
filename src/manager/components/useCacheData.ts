@@ -1,156 +1,190 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import type { AudioCacheEntry } from "../../shared/types.ts";
+import { useState, useCallback, useEffect } from "react";
+import type {
+  AudioCacheEntry,
+  TranslationCacheEntry,
+  CacheEntry,
+  CacheType,
+} from "../../shared/types.ts";
 import {
-  getAllEntries,
-  searchEntries,
+  getAllAudioEntries,
+  getAllTranslationEntries,
   deleteEntries,
-  getStorageStats,
   getAudioBlob,
-} from "../../lib/audio-cache.ts";
+  getStorageStats,
+} from "../../lib/cache.ts";
 import { AUDIO_CACHE_MAX_BYTES } from "../../shared/constants.ts";
 
-export interface CacheData {
-  entries: AudioCacheEntry[];
-  totalSize: number;
-  entryCount: number;
-  maxSize: number;
+interface CacheData {
   loading: boolean;
   query: string;
-  selected: Set<string>;
-  playingKey: string | null;
   setQuery: (q: string) => void;
-  refresh: () => Promise<void>;
+  activeType: CacheType;
+  setActiveType: (t: CacheType) => void;
+  audioEntries: AudioCacheEntry[];
+  translationEntries: TranslationCacheEntry[];
+  entries: CacheEntry[];
+  selected: Set<string>;
   toggleSelect: (key: string) => void;
-  selectAll: () => void;
   clearSelection: () => void;
+  selectAll: () => void;
+  deleteEntry: (key: string) => Promise<void>;
   deleteSelected: () => Promise<void>;
+  playingKey: string | null;
   downloadAudio: (entry: AudioCacheEntry) => Promise<void>;
   playAudio: (entry: AudioCacheEntry) => Promise<void>;
   stopAudio: () => void;
+  audioTotalSize: number;
+  audioEntryCount: number;
+  translationEntryCount: number;
+  maxSize: number;
 }
 
 export function useCacheData(): CacheData {
-  const [entries, setEntries] = useState<AudioCacheEntry[]>([]);
-  const [totalSize, setTotalSize] = useState(0);
-  const [entryCount, setEntryCount] = useState(0);
+  const [audioEntries, setAudioEntries] = useState<AudioCacheEntry[]>([]);
+  const [translationEntries, setTranslationEntries] = useState<TranslationCacheEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [activeType, setActiveType] = useState<CacheType>("audio");
+  const [selected, setSelected] = useState(new Set<string>());
   const [playingKey, setPlayingKey] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const objectUrlRef = useRef<string | null>(null);
+  const [audioTotalSize, setAudioTotalSize] = useState(0);
+  const [audioEntryCount, setAudioEntryCount] = useState(0);
+  const [translationEntryCount, setTranslationEntryCount] = useState(0);
 
-  const cleanupAudio = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
-    }
-    setPlayingKey(null);
-  }, []);
-
-  const refresh = useCallback(async () => {
+  const loadEntries = useCallback(async () => {
     setLoading(true);
     try {
-      const [items, stats] = await Promise.all([
-        query ? searchEntries(query) : getAllEntries(),
+      const [audio, translation, stats] = await Promise.all([
+        getAllAudioEntries(),
+        getAllTranslationEntries(),
         getStorageStats(),
       ]);
-      setEntries(items);
-      setTotalSize(stats.totalSize);
-      setEntryCount(stats.entryCount);
-      setSelected(new Set());
-    } finally {
-      setLoading(false);
+      setAudioEntries(audio);
+      setTranslationEntries(translation);
+      setAudioTotalSize(stats.audioTotalSize);
+      setAudioEntryCount(stats.audioEntryCount);
+      setTranslationEntryCount(stats.translationEntryCount);
+    } catch (err) {
+      console.error("Failed to load cache entries:", err);
     }
-  }, [query]);
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void loadEntries();
+  }, [loadEntries]);
+
+  const entries = activeType === "audio" ? audioEntries : translationEntries;
+
+  const filteredEntries = query
+    ? entries.filter((e) => e.text.toLowerCase().includes(query.toLowerCase()))
+    : entries;
 
   const toggleSelect = useCallback((key: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
       return next;
     });
   }, []);
-
-  const selectAll = useCallback(() => {
-    setSelected(new Set(entries.map((e) => e.cacheKey)));
-  }, [entries]);
 
   const clearSelection = useCallback(() => {
     setSelected(new Set());
   }, []);
 
+  const selectAll = useCallback(() => {
+    setSelected(new Set(filteredEntries.map((e) => e.cacheKey)));
+  }, [filteredEntries]);
+
+  const deleteEntry = useCallback(
+    async (key: string) => {
+      await deleteEntries([key], activeType);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+      await loadEntries();
+    },
+    [activeType, loadEntries],
+  );
+
   const deleteSelected = useCallback(async () => {
-    const keys = Array.from(selected);
-    if (keys.length === 0) return;
-    await deleteEntries(keys);
-    await refresh();
-  }, [selected, refresh]);
+    if (selected.size === 0) return;
+    await deleteEntries(Array.from(selected), activeType);
+    setSelected(new Set());
+    await loadEntries();
+  }, [selected, activeType, loadEntries]);
 
   const downloadAudio = useCallback(async (entry: AudioCacheEntry) => {
     const blob = await getAudioBlob(entry.cacheKey);
     if (!blob) return;
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${entry.text.slice(0, 30).replace(/[/\\?%*:|"<>]/g, "_")}.mp3`;
-    document.body.appendChild(a);
+    a.download = `audio_${entry.cacheKey.slice(0, 8)}.mp3`;
     a.click();
-    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }, []);
 
-  const stopAudio = useCallback(() => {
-    cleanupAudio();
-  }, [cleanupAudio]);
-
   const playAudio = useCallback(
     async (entry: AudioCacheEntry) => {
-      cleanupAudio();
+      if (playingKey) {
+        setPlayingKey(null);
+        return;
+      }
+
       const blob = await getAudioBlob(entry.cacheKey);
       if (!blob) return;
+
       const url = URL.createObjectURL(blob);
-      objectUrlRef.current = url;
-      const el = new Audio(url);
-      audioRef.current = el;
+      const audio = new Audio(url);
+      audio.onended = () => {
+        setPlayingKey(null);
+        URL.revokeObjectURL(url);
+      };
+      audio.onerror = () => {
+        setPlayingKey(null);
+        URL.revokeObjectURL(url);
+      };
+
       setPlayingKey(entry.cacheKey);
-      el.addEventListener("ended", cleanupAudio);
-      el.addEventListener("error", cleanupAudio);
-      await el.play();
+      void audio.play();
     },
-    [cleanupAudio],
+    [playingKey],
   );
 
-  useEffect(() => {
-    return cleanupAudio;
-  }, [cleanupAudio]);
+  const stopAudio = useCallback(() => {
+    setPlayingKey(null);
+  }, []);
 
   return {
-    entries,
-    totalSize,
-    entryCount,
-    maxSize: AUDIO_CACHE_MAX_BYTES,
     loading,
     query,
-    selected,
-    playingKey,
     setQuery,
-    refresh,
+    activeType,
+    setActiveType,
+    audioEntries,
+    translationEntries,
+    entries: filteredEntries,
+    selected,
     toggleSelect,
-    selectAll,
     clearSelection,
+    selectAll,
+    deleteEntry,
     deleteSelected,
+    playingKey,
     downloadAudio,
     playAudio,
     stopAudio,
+    audioTotalSize,
+    audioEntryCount,
+    translationEntryCount,
+    maxSize: AUDIO_CACHE_MAX_BYTES,
   };
 }

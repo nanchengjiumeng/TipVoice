@@ -6,21 +6,16 @@
   "scripts": {
     "dev": "vp dev",
     "build": "vp build",
-    "pack": "web-ext build --source-dir ./dist",
+    "pack": "vp build && rm -f tip-voice.zip && bash -c 'cd dist && zip -r ../tip-voice.zip .'",
     "preview": "vp preview",
     "prepare": "vp config"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.4.4",
-    "@heroui/react": "^3.0.3",
-    "@heroui/styles": "^3.0.3",
-    "framer-motion": "^12.38.0",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5",
-    "tailwindcss": "^4.2.4"
+    "react-dom": "^19.2.5"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.2.4",
     "@types/chrome": "^0.1.40",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
