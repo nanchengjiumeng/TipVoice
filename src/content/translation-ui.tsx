@@ -358,7 +358,7 @@ export class TranslateButton {
   constructor() {
     this.host = document.createElement("div");
     this.host.id = "tts-translate-btn-host";
-    this.host.style.position = "absolute";
+    this.host.style.position = "fixed";
     this.host.style.zIndex = "9999";
     this.shadow = this.host.attachShadow({ mode: "closed" });
 
@@ -396,7 +396,7 @@ export class TranslateButton {
 
     this.host.style.left = `${clampedX}px`;
     this.host.style.top = `${clampedY}px`;
-    this.host.style.position = "absolute";
+    this.host.style.position = "fixed";
     this.host.style.zIndex = "9999";
   }
 

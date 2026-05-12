@@ -255,7 +255,7 @@ export function CacheView() {
                       />
                     </td>
                     <td
-                      className="px-3 py-2 max-w-xs truncate cursor-pointer hover:text-primary-600"
+                      className="px-3 py-2 max-w-50 truncate cursor-pointer hover:text-primary-600"
                       onClick={() => setDetailEntry(entry)}
                     >
                       {entry.text}
@@ -282,7 +282,7 @@ export function CacheView() {
                             {(entry as TranslationCacheEntry).profileName}
                           </Chip>
                         </td>
-                        <td className="px-3 py-2 max-w-xs truncate text-gray-500">
+                        <td className="px-3 py-2 max-w-50 truncate text-gray-500">
                           {(entry as TranslationCacheEntry).result}
                         </td>
                       </>
