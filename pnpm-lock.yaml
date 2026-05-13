@@ -24,6 +24,9 @@ importers:
       '@heroui/react':
         specifier: ^3.0.4
         version: 3.0.4(@react-spectrum/provider@3.11.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(tailwindcss@4.3.0)
+      '@heroui/styles':
+        specifier: ^3.0.4
+        version: 3.0.4(tailwind-merge@3.4.0)(tailwindcss@4.3.0)
       react:
         specifier: ^19.2.5
         version: 19.2.5

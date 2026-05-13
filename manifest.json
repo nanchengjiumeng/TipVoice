@@ -29,7 +29,7 @@
     "128": "icons/icon-128.png"
   },
   "background": {
-    "service_worker": "src/background/index.ts",
+    "service_worker": "src/background/background.ts",
     "type": "module"
   },
   "content_scripts": [
