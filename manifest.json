@@ -8,6 +8,8 @@
     "https://openspeech.bytedance.com/*",
     "https://api.minimaxi.com/*",
     "https://api.siliconflow.cn/*",
+    "https://dict.youdao.com/*",
+    "https://fanyi.baidu.com/*",
     "http://localhost:*/*",
     "http://localhost/*",
     "http://127.0.0.1:*/*",
