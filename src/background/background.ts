@@ -290,7 +290,11 @@ chrome.runtime.onMessage.addListener(
     if (message.type === "AUDIO_PLAY_URL") {
       /* Forward to offscreen document which can play audio without host page CSP restrictions */
       if (!sender.tab) return false; /* skip self-forwarded messages */
-      log("audio play url request", { url: message.url });
+      const tabId = sender.tab.id ?? null;
+      log("audio play url request", { tabId, url: message.url });
+      if (tabId != null) {
+        playingTabId = tabId;
+      }
       void ensureOffscreenDocument().then(() => {
         void chrome.runtime.sendMessage({ type: "AUDIO_PLAY_URL", url: message.url });
       });

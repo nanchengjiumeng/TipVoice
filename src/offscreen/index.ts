@@ -33,8 +33,16 @@ function cleanup() {
   log("cleanup audio state");
   if (audio) {
     audio.pause();
+    audio.removeEventListener("ended", onAudioEnded);
+    audio.removeEventListener("error", onAudioError);
     audio.removeAttribute("src");
+    audio.load(); /* abort any pending network request */
     audio = null;
+  }
+  /* Also pause URL audio to prevent overlap */
+  if (urlAudio) {
+    urlAudio.pause();
+    urlAudio.removeAttribute("src");
   }
   if (objectUrl) {
     URL.revokeObjectURL(objectUrl);
@@ -234,18 +242,40 @@ function playCachedAudio(audioBase64: string, mimeType: string) {
     });
 }
 
+/*
+ * URL audio uses a dedicated, persistent Audio element.
+ * This avoids the create/destroy cycle that can cause event-listener
+ * races and autoplay-policy issues on repeat plays.
+ */
+let urlAudio: HTMLAudioElement | null = null;
+
+function ensureUrlAudio(): HTMLAudioElement {
+  if (!urlAudio) {
+    urlAudio = new Audio();
+    urlAudio.addEventListener("ended", () => {
+      log("url audio ended");
+      sendState("ended");
+    });
+    urlAudio.addEventListener("error", () => {
+      warn("url audio error");
+      sendState("error");
+    });
+  }
+  return urlAudio;
+}
+
 function playUrlAudio(url: string) {
   log("play url audio", { url });
+  /* Stop TTS audio if playing */
   cleanup();
-  audio = new Audio(url);
-  audio.addEventListener("ended", onAudioEnded);
-  audio.addEventListener("error", onAudioError);
-  audio
-    .play()
+  const el = ensureUrlAudio();
+  el.pause();
+  el.src = url;
+  el.play()
     .then(() => sendState("playing"))
     .catch((err) => {
       warn("url playback failed", err);
-      onAudioError();
+      sendState("error");
     });
 }
 
