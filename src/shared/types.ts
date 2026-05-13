@@ -112,8 +112,7 @@ export type ExtensionMessage =
   | AudioStopMessage
   | AudioStateMessage
   | AudioPlayCachedMessage
-  | FetchAudioRequestMessage
-  | FetchAudioResponseMessage
+  | AudioPlayUrlMessage
   | TranslationRequestMessage
   | TranslationResponseMessage
   | TranslationStreamStartMessage
@@ -166,16 +165,9 @@ export interface AudioPlayCachedMessage {
   mimeType?: string;
 }
 
-export interface FetchAudioRequestMessage {
-  type: "FETCH_AUDIO_URL";
+export interface AudioPlayUrlMessage {
+  type: "AUDIO_PLAY_URL";
   url: string;
-}
-
-export interface FetchAudioResponseMessage {
-  type: "FETCH_AUDIO_RESPONSE";
-  audioBase64?: string;
-  mimeType?: string;
-  error?: string;
 }
 
 export interface TranslationRequestMessage {

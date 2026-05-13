@@ -1,6 +1,5 @@
 import type {
   ExtensionMessage,
-  FetchAudioResponseMessage,
   TTSResponseMessage,
   TTSSettings,
   TranslationResponseMessage,
@@ -277,13 +276,7 @@ chrome.runtime.onMessage.addListener(
   (
     message: ExtensionMessage,
     sender: chrome.runtime.MessageSender,
-    sendResponse: (
-      response:
-        | TTSResponseMessage
-        | TranslationResponseMessage
-        | FetchAudioResponseMessage
-        | undefined,
-    ) => void,
+    sendResponse: (response: TTSResponseMessage | TranslationResponseMessage | undefined) => void,
   ) => {
     if (message.type === "AUDIO_STATE" && playingTabId != null) {
       log("audio state from offscreen", { playingTabId, state: message.state });
@@ -294,27 +287,15 @@ chrome.runtime.onMessage.addListener(
       return false;
     }
 
-    if (message.type === "FETCH_AUDIO_URL") {
-      /* Background fetches audio (no CORS restriction) and returns base64 to content script */
-      log("fetch audio url request", { url: message.url });
-      fetch(message.url)
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const mimeType = res.headers.get("content-type") || "audio/mpeg";
-          return res.blob().then((blob) => ({ blob, mimeType }));
-        })
-        .then(({ blob, mimeType }) =>
-          blobToBase64(blob).then((audioBase64) => ({ audioBase64, mimeType })),
-        )
-        .then(({ audioBase64, mimeType }) => {
-          sendResponse({ type: "FETCH_AUDIO_RESPONSE", audioBase64, mimeType });
-        })
-        .catch((err: unknown) => {
-          const errorMsg = err instanceof Error ? err.message : String(err);
-          error("fetch audio url failed", errorMsg);
-          sendResponse({ type: "FETCH_AUDIO_RESPONSE", error: errorMsg });
-        });
-      return true; /* async sendResponse */
+    if (message.type === "AUDIO_PLAY_URL") {
+      /* Forward to offscreen document which can play audio without host page CSP restrictions */
+      if (!sender.tab) return false; /* skip self-forwarded messages */
+      log("audio play url request", { url: message.url });
+      void ensureOffscreenDocument().then(() => {
+        void chrome.runtime.sendMessage({ type: "AUDIO_PLAY_URL", url: message.url });
+      });
+      sendResponse(undefined);
+      return false;
     }
 
     if (isTTSCancel(message)) {

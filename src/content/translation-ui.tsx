@@ -26,32 +26,15 @@ export interface TranslationResult {
   pending?: boolean;
 }
 
-async function playAudioViaBackground(url: string): Promise<void> {
+function playAudioViaOffscreen(url: string): void {
   /*
-   * Ask background to fetch the audio (no CORS restriction in service worker),
-   * then play the returned base64 data as a blob: URL.
-   * blob: URLs are allowed by most page CSP media-src directives.
+   * Route audio playback through offscreen document.
+   * Offscreen document is NOT subject to host page CSP restrictions.
+   * Flow: content script → background → offscreen (plays Audio directly).
    */
-  try {
-    const response: { audioBase64?: string; mimeType?: string; error?: string } =
-      await chrome.runtime.sendMessage({ type: "FETCH_AUDIO_URL", url });
-    if (response?.error || !response?.audioBase64) {
-      return;
-    }
-    const binary = atob(response.audioBase64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    const blob = new Blob([bytes], { type: response.mimeType || "audio/mpeg" });
-    const blobUrl = URL.createObjectURL(blob);
-    const audio = new Audio(blobUrl);
-    audio.addEventListener("ended", () => URL.revokeObjectURL(blobUrl));
-    audio.addEventListener("error", () => URL.revokeObjectURL(blobUrl));
-    await audio.play();
-  } catch {
-    /* Extension context lost or playback failed - silently ignore */
-  }
+  chrome.runtime.sendMessage({ type: "AUDIO_PLAY_URL", url }).catch(() => {
+    /* Extension context lost (page not refreshed after extension reload) - silently ignore */
+  });
 }
 
 function AudioPlayer({ src }: { src: string }) {
@@ -71,7 +54,7 @@ function AudioPlayer({ src }: { src: string }) {
       btn.appendChild(ripple);
       ripple.addEventListener("animationend", () => ripple.remove());
 
-      void playAudioViaBackground(src);
+      playAudioViaOffscreen(src);
     };
     btn.addEventListener("click", nativeClick);
     return () => btn.removeEventListener("click", nativeClick);

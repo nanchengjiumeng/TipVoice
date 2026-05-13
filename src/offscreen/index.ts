@@ -4,6 +4,7 @@ import type {
   AudioEndMessage,
   AudioStopMessage,
   AudioPlayCachedMessage,
+  AudioPlayUrlMessage,
 } from "../shared/types.ts";
 
 type OffscreenMessage =
@@ -11,7 +12,8 @@ type OffscreenMessage =
   | AudioChunkMessage
   | AudioEndMessage
   | AudioStopMessage
-  | AudioPlayCachedMessage;
+  | AudioPlayCachedMessage
+  | AudioPlayUrlMessage;
 
 let currentMimeType = "audio/mpeg";
 let mediaSource: MediaSource | null = null;
@@ -232,6 +234,21 @@ function playCachedAudio(audioBase64: string, mimeType: string) {
     });
 }
 
+function playUrlAudio(url: string) {
+  log("play url audio", { url });
+  cleanup();
+  audio = new Audio(url);
+  audio.addEventListener("ended", onAudioEnded);
+  audio.addEventListener("error", onAudioError);
+  audio
+    .play()
+    .then(() => sendState("playing"))
+    .catch((err) => {
+      warn("url playback failed", err);
+      onAudioError();
+    });
+}
+
 chrome.runtime.onMessage.addListener((message: OffscreenMessage) => {
   log("message received", { type: message.type });
   if (message.type === "AUDIO_STREAM_START") {
@@ -256,6 +273,11 @@ chrome.runtime.onMessage.addListener((message: OffscreenMessage) => {
 
   if (message.type === "AUDIO_PLAY_CACHED") {
     playCachedAudio(message.audioBase64, message.mimeType || "audio/mpeg");
+    return;
+  }
+
+  if (message.type === "AUDIO_PLAY_URL") {
+    playUrlAudio(message.url);
     return;
   }
 });
