@@ -1,10 +1,10 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { TranslationProfile } from "../../shared/types.ts";
+import { TRANSLATION_PROVIDER_LABELS, MINIMAX_CHAT_MODELS } from "../../shared/constants.ts";
 import {
-  TRANSLATION_PROVIDER_LABELS,
-  MINIMAX_CHAT_MODELS,
-  SILICONFLOW_CHAT_MODELS,
-} from "../../shared/constants.ts";
+  fetchSiliconflowModels,
+  type SiliconflowModel,
+} from "../../core/chat/providers/siliconflow.ts";
 import { Button, Card, Checkbox, Label, Input, TextField, Select, ListBox } from "@heroui/react";
 
 interface Props {
@@ -33,6 +33,36 @@ export function TranslationProfileEditor({ profile, onSave }: Props) {
     return initial;
   });
   const [saved, setSaved] = useState(false);
+  const [sfModels, setSfModels] = useState<SiliconflowModel[]>([]);
+  const [sfModelsLoading, setSfModelsLoading] = useState(false);
+  const [sfModelsError, setSfModelsError] = useState<string | null>(null);
+  const sfFetchRef = useRef(0);
+
+  /* Fetch SiliconFlow models when apiKey changes */
+  useEffect(() => {
+    const key = local.siliconflow.apiKey.trim();
+    if (!key) {
+      setSfModels([]);
+      setSfModelsError(null);
+      return;
+    }
+    const fetchId = ++sfFetchRef.current;
+    setSfModelsLoading(true);
+    setSfModelsError(null);
+    fetchSiliconflowModels(key)
+      .then((models) => {
+        if (fetchId !== sfFetchRef.current) return; /* stale */
+        setSfModels(models);
+        setSfModelsLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (fetchId !== sfFetchRef.current) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        setSfModelsError(msg);
+        setSfModels([]);
+        setSfModelsLoading(false);
+      });
+  }, [local.siliconflow.apiKey]);
 
   useEffect(() => {
     if (import.meta.env.DEV && (DEV_MINIMAX_KEY || DEV_SILICONFLOW_KEY)) {
@@ -235,30 +265,52 @@ export function TranslationProfileEditor({ profile, onSave }: Props) {
                 placeholder="输入硅基流动 API Key"
               />
             </TextField>
-            <Select
-              fullWidth
-              selectedKey={local.siliconflow.model}
-              onSelectionChange={(key) => {
-                if (key)
-                  updateSiliconflow(
-                    "model",
-                    String(key) as TranslationProfile["siliconflow"]["model"],
-                  );
-              }}
-            >
-              <Select.Trigger>
-                <Select.Value />
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  {SILICONFLOW_CHAT_MODELS.map((m) => (
-                    <ListBox.Item key={m.value} id={m.value}>
-                      {m.label}
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-            </Select>
+            <TextField fullWidth>
+              <Label className="text-xs">
+                模型
+                {sfModelsLoading && <span className="ml-1 text-gray-400">加载中...</span>}
+                {sfModelsError && <span className="ml-1 text-red-500">{sfModelsError}</span>}
+              </Label>
+              {local.siliconflow.apiKey.trim() && sfModels.length > 0 ? (
+                <Select
+                  fullWidth
+                  selectedKey={local.siliconflow.model}
+                  onSelectionChange={(key) => {
+                    if (key)
+                      updateSiliconflow(
+                        "model",
+                        String(key) as TranslationProfile["siliconflow"]["model"],
+                      );
+                  }}
+                >
+                  <Select.Trigger>
+                    <Select.Value />
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {sfModels.map((m) => (
+                        <ListBox.Item key={m.id} id={m.id}>
+                          {m.id}
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              ) : (
+                <Input
+                  value={local.siliconflow.model}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    updateSiliconflow(
+                      "model",
+                      e.target.value as TranslationProfile["siliconflow"]["model"],
+                    )
+                  }
+                  placeholder={
+                    local.siliconflow.apiKey.trim() ? "加载模型列表..." : "先输入 API Key"
+                  }
+                />
+              )}
+            </TextField>
             <Checkbox
               isSelected={local.siliconflow.enableThinking}
               onChange={() =>

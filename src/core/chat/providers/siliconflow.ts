@@ -3,32 +3,40 @@ import type { ChatProviderConfig, ChatRequest, ChatResponse, ChatStreamChunk } f
 import { chatOpenAICompatible, chatOpenAICompatibleStream } from "../openai-compatible.ts";
 
 const SILICONFLOW_CHAT_URL = "https://api.siliconflow.cn/v1/chat/completions";
+const SILICONFLOW_MODELS_URL = "https://api.siliconflow.cn/v1/models";
 
-export const SILICONFLOW_CHAT_MODELS = [
-  { label: "GLM-5 Pro", value: "Pro/zai-org/GLM-5" as const },
-  { label: "DeepSeek-V4-Flash", value: "deepseek-ai/DeepSeek-V4-Flash" as const },
-  { label: "GLM-4.7 Pro", value: "Pro/zai-org/GLM-4.7" as const },
-  { label: "DeepSeek-V3.2", value: "deepseek-ai/DeepSeek-V3.2" as const },
-  { label: "DeepSeek-V3.2 Pro", value: "Pro/deepseek-ai/DeepSeek-V3.2" as const },
-  { label: "GLM-4.6", value: "zai-org/GLM-4.6" as const },
-  { label: "Qwen3-8B", value: "Qwen/Qwen3-8B" as const },
-  { label: "Qwen3-14B", value: "Qwen/Qwen3-14B" as const },
-  { label: "Qwen3-32B", value: "Qwen/Qwen3-32B" as const },
-  { label: "Qwen3-30B-A3B", value: "Qwen/Qwen3-30B-A3B" as const },
-  { label: "Hunyuan-A13B-Instruct", value: "tencent/Hunyuan-A13B-Instruct" as const },
-  { label: "GLM-4.5V", value: "zai-org/GLM-4.5V" as const },
-  { label: "DeepSeek-V3.1-Terminus", value: "deepseek-ai/DeepSeek-V3.1-Terminus" as const },
-  {
-    label: "DeepSeek-V3.1-Terminus Pro",
-    value: "Pro/deepseek-ai/DeepSeek-V3.1-Terminus" as const,
-  },
-  { label: "Qwen3.5-397B-A17B", value: "Qwen/Qwen3.5-397B-A17B" as const },
-  { label: "Qwen3.5-122B-A10B", value: "Qwen/Qwen3.5-122B-A10B" as const },
-  { label: "Qwen3.5-35B-A3B", value: "Qwen/Qwen3.5-35B-A3B" as const },
-  { label: "Qwen3.5-27B", value: "Qwen/Qwen3.5-27B" as const },
-  { label: "Qwen3.5-9B", value: "Qwen/Qwen3.5-9B" as const },
-  { label: "Qwen3.5-4B", value: "Qwen/Qwen3.5-4B" as const },
-] as const;
+export interface SiliconflowModel {
+  id: string;
+  object: string;
+  owned_by: string;
+}
+
+/**
+ * Fetch available chat models from SiliconFlow API.
+ * Only returns models that look like chat/text models (excludes image/audio models).
+ */
+export async function fetchSiliconflowModels(apiKey: string): Promise<SiliconflowModel[]> {
+  const res = await fetch(SILICONFLOW_MODELS_URL, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json: { object: string; data: SiliconflowModel[] } = await res.json();
+  /* Filter to chat/text models only (heuristic: exclude common image/audio prefixes) */
+  return (json.data ?? []).filter((m) => {
+    const id = m.id.toLowerCase();
+    return (
+      !id.includes("stable-diffusion") &&
+      !id.includes("flux") &&
+      !id.includes("playground") &&
+      !id.includes("kolors") &&
+      !id.includes("deepfloyd") &&
+      !id.includes("audioldm") &&
+      !id.includes("bark") &&
+      !id.includes("music") &&
+      !id.includes("tts")
+    );
+  });
+}
 
 export class SiliconFlowChatProvider implements ChatProvider {
   readonly id = "siliconflow";

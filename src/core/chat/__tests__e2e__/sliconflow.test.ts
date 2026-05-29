@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
-import { SILICONFLOW_CHAT_MODELS, SiliconFlowChatProvider } from "../providers/siliconflow.ts";
+import { SiliconFlowChatProvider } from "../providers/siliconflow.ts";
+import { DEFAULT_SILICONFLOW_MODEL } from "../../../shared/constants.ts";
 import type { ChatRequest } from "../types.ts";
 
 const VITE_API_KEY_SILICONFLOW = import.meta.env.VITE_API_KEY_SILICONFLOW as string | undefined;
@@ -9,7 +10,7 @@ function createProvider() {
   return new SiliconFlowChatProvider({ apiKey: VITE_API_KEY_SILICONFLOW });
 }
 
-const MODEL = SILICONFLOW_CHAT_MODELS[0].value; // You can change the index to test different models
+const MODEL = DEFAULT_SILICONFLOW_MODEL;
 
 function createChatRequest(userContent: string): ChatRequest {
   return {

@@ -186,31 +186,7 @@ export const MINIMAX_CHAT_MODELS = [
   { label: "MiniMax-M2.1", value: "MiniMax-M2.1" as const },
 ] as const;
 
-export const SILICONFLOW_CHAT_MODELS = [
-  { label: "DeepSeek-V4-Flash (推荐)", value: "deepseek-ai/DeepSeek-V4-Flash" as const },
-  { label: "GLM-5 Pro", value: "Pro/zai-org/GLM-5" as const },
-  { label: "GLM-4.7 Pro", value: "Pro/zai-org/GLM-4.7" as const },
-  { label: "DeepSeek-V3.2", value: "deepseek-ai/DeepSeek-V3.2" as const },
-  { label: "DeepSeek-V3.2 Pro", value: "Pro/deepseek-ai/DeepSeek-V3.2" as const },
-  { label: "GLM-4.6", value: "zai-org/GLM-4.6" as const },
-  { label: "Qwen3-8B", value: "Qwen/Qwen3-8B" as const },
-  { label: "Qwen3-14B", value: "Qwen/Qwen3-14B" as const },
-  { label: "Qwen3-32B (推荐)", value: "Qwen/Qwen3-32B" as const },
-  { label: "Qwen3-30B-A3B", value: "Qwen/Qwen3-30B-A3B" as const },
-  { label: "Hunyuan-A13B-Instruct", value: "tencent/Hunyuan-A13B-Instruct" as const },
-  { label: "GLM-4.5V", value: "zai-org/GLM-4.5V" as const },
-  { label: "DeepSeek-V3.1-Terminus", value: "deepseek-ai/DeepSeek-V3.1-Terminus" as const },
-  {
-    label: "DeepSeek-V3.1-Terminus Pro",
-    value: "Pro/deepseek-ai/DeepSeek-V3.1-Terminus" as const,
-  },
-  { label: "Qwen3.5-397B-A17B", value: "Qwen/Qwen3.5-397B-A17B" as const },
-  { label: "Qwen3.5-122B-A10B", value: "Qwen/Qwen3.5-122B-A10B" as const },
-  { label: "Qwen3.5-35B-A3B", value: "Qwen/Qwen3.5-35B-A3B" as const },
-  { label: "Qwen3.5-27B", value: "Qwen/Qwen3.5-27B" as const },
-  { label: "Qwen3.5-9B", value: "Qwen/Qwen3.5-9B" as const },
-  { label: "Qwen3.5-4B", value: "Qwen/Qwen3.5-4B" as const },
-] as const;
+export const DEFAULT_SILICONFLOW_MODEL = "deepseek-ai/DeepSeek-V4-Flash";
 
 export const AUDIO_MIME_TYPE = "audio/mpeg";
 
